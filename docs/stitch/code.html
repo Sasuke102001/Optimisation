@@ -1,0 +1,1044 @@
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Polynovea — Module 3 Live KPI Dashboard</title>
+<meta content="Polynovea Module 3 behavioral operations workspace for live venue KPI logging and monitoring." name="description"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800&amp;family=Space+Grotesk:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600,700&amp;display=swap" rel="stylesheet"/>
+<style>
+    /* ═══════════════════════════════════════════════
+       POLYNOVEA BRAND TOKENS — DARK SYSTEM
+    ═══════════════════════════════════════════════ */
+    :root {
+      --bg-primary:    #0A0A0A;
+      --bg-secondary:  #121212;
+      --bg-card:       #18181B;
+      --border:        #27272A;
+      --border-light:  #303035;
+
+      --text-primary:  #F5F5F5;
+      --text-secondary:#A1A1AA;
+      --text-disabled: #71717A;
+
+      --gold:          #E6D3A3;
+      --gold-muted:    #9A8F6A;
+      --gold-dim:      rgba(230,211,163,0.08);
+      --violet:        #7C3AED;
+      --violet-dim:    rgba(124,58,237,0.12);
+
+      --ok:            #22C55E;
+      --ok-bg:         rgba(34,197,94,0.07);
+      --watch:         #F59E0B;
+      --watch-bg:      rgba(245,158,11,0.07);
+      --alert:         #EF4444;
+      --alert-bg:      rgba(239,68,68,0.07);
+      --stale:         #52525B;
+      --stale-bg:      rgba(82,82,91,0.07);
+
+      --zone-w:        90px;
+      --header-h:      70px;
+      --panel-w:       316px;
+      --radius:        10px;
+      --radius-sm:     7px;
+
+      /* Immersive Overrides */
+      --glass: rgba(24, 24, 27, 0.7);
+      --glass-border: rgba(39, 39, 42, 0.8);
+      --glow-violet: 0 0 15px rgba(124, 58, 237, 0.3);
+      --glow-gold: 0 0 15px rgba(230, 211, 163, 0.2);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      line-height: 1.5;
+      background: radial-gradient(circle at center, #121212 0%, #0A0A0A 100%);
+      color: var(--text-primary);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      -webkit-font-smoothing: antialiased;
+      position: relative;
+    }
+
+    /* Background Noise Overlay */
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background-image: url("https://www.transparenttextures.com/patterns/carbon-fibre.png");
+      opacity: 0.03;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* Three.js Canvas Placeholder Style */
+    #immersive-canvas {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      z-index: 0;
+      pointer-events: none;
+      opacity: 0.5;
+    }
+
+    /* Typography Updates */
+    h1, h2, h3, .hd-brand-name, .ws-zone-name, .card-family-name, .modal-title, .hd-mark {
+      font-family: 'Clash Display', sans-serif !important;
+      letter-spacing: 0.5px;
+    }
+
+    /* ═══════════════════════════════════════════════
+       SESSION HEADER
+    ═══════════════════════════════════════════════ */
+    #header {
+      height: var(--header-h);
+      background: rgba(18, 18, 18, 0.8);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 18px;
+      gap: 16px;
+      flex-shrink: 0;
+      z-index: 200;
+      position: relative;
+    }
+
+    .hd-brand {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding-right: 16px;
+      border-right: 1px solid var(--border);
+    }
+    .hd-mark {
+      width: 33px; height: 33px;
+      background: var(--gold);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 13px;
+      color: #0A0A0A; letter-spacing: -0.5px;
+      flex-shrink: 0;
+      box-shadow: var(--glow-gold);
+    }
+    .hd-brand-text { display: flex; flex-direction: column; gap: 1px; }
+    .hd-brand-name {
+      font-weight: 700; font-size: 13px;
+      color: var(--gold); letter-spacing: 0.4px;
+    }
+    .hd-brand-sub {
+      font-size: 9.5px; font-weight: 500;
+      color: var(--text-disabled);
+      letter-spacing: 1.2px; text-transform: uppercase;
+    }
+
+    .hd-session { flex: 1; display: flex; align-items: center; gap: 14px; }
+    .hd-venue-block { display: flex; flex-direction: column; gap: 2px; }
+    .hd-venue {
+      font-family: 'Clash Display', sans-serif;
+      font-weight: 600; font-size: 15px;
+      color: var(--text-primary);
+    }
+    .hd-session-meta { font-size: 11px; color: var(--text-secondary); }
+
+    .live-badge {
+      display: flex; align-items: center; gap: 5px;
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.22);
+      border-radius: 20px;
+      padding: 4px 10px;
+      font-size: 10px; font-weight: 700;
+      color: var(--alert); letter-spacing: 0.6px;
+      text-transform: uppercase;
+    }
+    .live-dot {
+      width: 6px; height: 6px;
+      background: var(--alert); border-radius: 50%;
+      animation: blink 1.6s ease-in-out infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.25} }
+
+    .hd-timer {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 24px; font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: 1.5px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .hd-stats {
+      display: flex; align-items: center; gap: 8px;
+      padding-left: 16px;
+      border-left: 1px solid var(--border);
+    }
+    .stat-chip {
+      display: flex; align-items: center; gap: 5px;
+      padding: 5px 11px;
+      border-radius: 20px;
+      font-size: 11px; font-weight: 600;
+      border: 1px solid transparent;
+      cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .stat-chip:hover { transform: translateY(-1px); }
+    
+    .stat-chip.stale  { background:var(--watch-bg); border-color:rgba(245,158,11,0.2); color:var(--watch); }
+    .stat-chip.follow { 
+      background:var(--violet-dim); border-color:rgba(124,58,237,0.2); color:#A78BFA; 
+      animation: pulse-violet 2s infinite;
+    }
+    
+    @keyframes pulse-violet {
+      0% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.4); }
+      70% { box-shadow: 0 0 0 10px rgba(124, 58, 237, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0); }
+    }
+
+    .stat-n { font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:13px; }
+
+    .hd-controls {
+      display: flex; align-items: center; gap: 8px;
+      padding-left: 16px;
+      border-left: 1px solid var(--border);
+    }
+    .hd-op {
+      display: flex; align-items: center; gap: 7px;
+      padding: 5px 10px;
+      background: var(--bg-card);
+      border: 1px solid var(--border); border-radius: var(--radius-sm);
+    }
+    .hd-op-av {
+      width: 24px; height: 24px; border-radius: 50%;
+      background: var(--gold-muted);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 700; color: #0A0A0A;
+    }
+    .hd-op-name { font-size: 11.5px; font-weight: 500; color: var(--text-secondary); }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 7px 14px;
+      border-radius: var(--radius-sm);
+      font-family: 'Inter', sans-serif;
+      font-size: 12.5px; font-weight: 600;
+      cursor: pointer; border: none;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      white-space: nowrap;
+    }
+    .btn:active { transform: scale(0.96); }
+    
+    .btn-gold {
+      background: var(--gold); color: #0A0A0A;
+      box-shadow: var(--glow-gold);
+    }
+    .btn-gold:hover { background: #f0ddb0; transform: translateY(-1px); }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover { border-color: var(--gold-muted); color: var(--text-primary); background: rgba(255,255,255,0.03); }
+
+    /* ═══════════════════════════════════════════════
+       MAIN LAYOUT
+    ═══════════════════════════════════════════════ */
+    #layout {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+      z-index: 10;
+    }
+
+    /* ═══════════════════════════════════════════════
+       ZONE RAIL
+    ═══════════════════════════════════════════════ */
+    #zone-rail {
+      width: var(--zone-w);
+      background: rgba(18, 18, 18, 0.5);
+      backdrop-filter: blur(4px);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 12px 0 20px;
+      gap: 2px;
+      flex-shrink: 0;
+      overflow-y: auto;
+    }
+    .rail-label {
+      font-size: 9px; font-weight: 600;
+      color: var(--text-disabled); letter-spacing: 1.1px;
+      text-transform: uppercase; padding: 0 12px 6px;
+    }
+
+    .zone-btn {
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+      padding: 9px 6px; margin: 0 8px;
+      border-radius: 9px;
+      cursor: pointer; border: none; background: transparent;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+    }
+    .zone-btn:hover { background: rgba(245,245,245,0.04); }
+    .zone-btn:active { transform: scale(0.96); }
+    .zone-btn.active {
+      background: var(--gold-dim);
+    }
+    .zone-btn.active::before {
+      content: '';
+      position: absolute;
+      left: -8px; top: 50%;
+      transform: translateY(-50%);
+      width: 3px; height: 60%;
+      background: var(--gold);
+      border-radius: 0 3px 3px 0;
+    }
+
+    .zone-icon-wrap {
+      width: 38px; height: 38px;
+      border-radius: 10px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 17px;
+      position: relative;
+      transition: all 0.3s ease;
+    }
+    .zone-btn.active .zone-icon-wrap {
+      background: rgba(230,211,163,0.07);
+      border-color: rgba(230,211,163,0.22);
+      box-shadow: var(--glow-gold);
+    }
+    .zone-pip {
+      position: absolute; top: -3px; right: -3px;
+      width: 10px; height: 10px; border-radius: 50%;
+      border: 2px solid var(--bg-secondary);
+    }
+    .zone-pip.ok    { background: var(--ok); }
+    .zone-pip.watch { background: var(--watch); }
+    .zone-pip.alert { background: var(--alert); }
+    .zone-pip.stale { background: var(--stale); }
+    .zone-pip.none  { background: var(--border); }
+
+    .zone-lbl {
+      font-size: 9px; font-weight: 500;
+      color: var(--text-disabled); text-align: center;
+      line-height: 1.2; letter-spacing: 0.2px;
+    }
+    .zone-btn.active .zone-lbl { color: var(--gold); font-weight: 600; }
+
+    /* ═══════════════════════════════════════════════
+       KPI WORKSPACE
+    ═══════════════════════════════════════════════ */
+    #workspace {
+      flex: 1;
+      overflow-y: auto;
+      padding: 18px 20px;
+      display: flex; flex-direction: column; gap: 16px;
+      z-index: 1;
+    }
+
+    .ws-topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 10px;
+    }
+    .ws-zone-title {
+      display: flex; align-items: center; gap: 12px;
+    }
+    .ws-zone-icon { font-size: 24px; }
+    .ws-zone-name {
+      font-size: 22px; font-weight: 600;
+      color: var(--text-primary);
+    }
+    .ws-zone-desc { font-size: 11px; color: var(--text-secondary); }
+    .ws-actions { display: flex; gap: 8px; }
+
+    /* ═══════════════════════════════════════════════
+       KPI GRID
+    ═══════════════════════════════════════════════ */
+    #kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 16px;
+    }
+
+    /* ═══════════════════════════════════════════════
+       KPI CARD
+    ═══════════════════════════════════════════════ */
+    .kpi-card {
+      background: var(--glass);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius);
+      display: flex; flex-direction: column;
+      overflow: hidden;
+      transition: transform 0.3s cubic-bezier(0.23, 1, 0.32, 1), box-shadow 0.3s ease, border-color 0.3s ease !important;
+      transform-style: preserve-3d;
+      position: relative;
+    }
+    .kpi-card:hover {
+      border-color: var(--gold-muted) !important;
+      box-shadow: var(--glow-gold);
+    }
+    .kpi-card::after {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0;
+      height: 3px; border-radius: var(--radius) var(--radius) 0 0;
+      z-index: 2;
+    }
+    .kpi-card.st-ok::after    { background: var(--ok); }
+    .kpi-card.st-watch::after { background: var(--watch); }
+    .kpi-card.st-alert::after { background: var(--alert); }
+    .kpi-card.st-stale::after { background: var(--stale); }
+    .kpi-card.st-none::after  { background: var(--border); }
+
+    .card-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 15px 10px;
+    }
+    .card-family {
+      display: flex; align-items: center; gap: 7px;
+    }
+    .card-family-icon { font-size: 16px; }
+    .card-family-name {
+      font-size: 14px; font-weight: 600;
+      color: var(--text-primary); letter-spacing: 0.2px;
+    }
+
+    .status-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 9px; font-weight: 700;
+      letter-spacing: 0.7px; text-transform: uppercase;
+      border: 1px solid transparent;
+    }
+    .status-badge.st-ok    { background:var(--ok-bg); border-color:rgba(34,197,94,0.2); color:var(--ok); }
+    .status-badge.st-watch { background:var(--watch-bg); border-color:rgba(245,158,11,0.2); color:var(--watch); }
+    .status-badge.st-alert { background:var(--alert-bg); border-color:rgba(239,68,68,0.2); color:var(--alert); }
+    .status-badge.st-none  { background:rgba(39,39,42,0.5); border-color:var(--border); color:var(--text-disabled); }
+
+    .card-signals {
+      padding: 0 15px 12px;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .signal-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 7px 10px;
+      border-radius: 6px;
+      background: rgba(39,39,42,0.25);
+      border: 1px solid rgba(255,255,255,0.02);
+    }
+    .sig-name { font-size: 11px; color: var(--text-secondary); }
+    .sig-indicator {
+      width: 7px; height: 7px; border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .sig-indicator.ok    { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+    .sig-indicator.watch { background: var(--watch); box-shadow: 0 0 6px var(--watch); }
+    .sig-indicator.alert { background: var(--alert); box-shadow: 0 0 6px var(--alert); }
+    .sig-indicator.none  { background: var(--border); }
+
+    .card-foot {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 15px 15px;
+      border-top: 1px solid rgba(255,255,255,0.05);
+      margin-top: auto;
+    }
+    .card-ts {
+      font-size: 10px; color: var(--text-disabled);
+      display: flex; align-items: center; gap: 4px;
+    }
+    .card-actions { display: flex; gap: 6px; }
+    .card-btn {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 5px 10px;
+      border-radius: 6px;
+      font-size: 11px; font-weight: 500;
+      cursor: pointer; border: 1px solid var(--border);
+      background: transparent; color: var(--text-secondary);
+      transition: all 0.13s ease;
+    }
+    .card-btn:hover { border-color: var(--gold-muted); color: var(--gold); background: rgba(230,211,163,0.05); }
+    .card-btn.upd {
+      background: var(--gold-dim);
+      border-color: rgba(230,211,163,0.25);
+      color: var(--gold);
+    }
+
+    /* ═══════════════════════════════════════════════
+       RIGHT PANEL
+    ═══════════════════════════════════════════════ */
+    #right-panel {
+      width: var(--panel-w);
+      background: rgba(18, 18, 18, 0.7);
+      backdrop-filter: blur(8px);
+      border-left: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      flex-shrink: 0;
+      z-index: 100;
+    }
+
+    .panel-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+    }
+    .ptab {
+      flex: 1;
+      padding: 12px 0;
+      text-align: center;
+      font-size: 11px; font-weight: 600;
+      color: var(--text-disabled);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s ease;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .ptab.active { color: var(--gold); border-bottom-color: var(--gold); }
+
+    .panel-body {
+      flex: 1; overflow-y: auto;
+      padding: 16px;
+    }
+
+    .panel-section-label {
+      font-size: 9px; font-weight: 700;
+      color: var(--text-disabled); letter-spacing: 1.1px;
+      text-transform: uppercase; margin-bottom: 12px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .panel-section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+    .qa {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px;
+      border-radius: 8px; border: 1px solid var(--border);
+      background: rgba(24, 24, 27, 0.5);
+      cursor: pointer; font-family: 'Inter', sans-serif;
+      font-size: 12px; font-weight: 500;
+      color: var(--text-secondary);
+      transition: all 0.2s ease;
+      text-align: left;
+      margin-bottom: 8px;
+      width: 100%;
+    }
+    .qa:hover { border-color: var(--gold-muted); color: var(--text-primary); background: rgba(255,255,255,0.04); }
+    .qa.danger { border-color: rgba(239,68,68,0.2); color: var(--alert); }
+    .qa.violet { border-color: rgba(124,58,237,0.2); color: #A78BFA; }
+    .qa-ico {
+      width: 24px; height: 24px;
+      border-radius: 4px;
+      background: rgba(39,39,42,0.8);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; flex-shrink: 0;
+    }
+
+    /* Activity Feed Items */
+    .feed-item {
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+      display: flex; gap: 10px;
+    }
+    .feed-ico { width: 12px; height: 12px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
+    .feed-content { display: flex; flex-direction: column; gap: 2px; }
+    .feed-msg { font-size: 12px; color: var(--text-primary); line-height: 1.4; }
+    .feed-meta { font-size: 10px; color: var(--text-disabled); display: flex; gap: 6px; }
+
+    /* Flag Items */
+    .flag-card {
+      padding: 12px;
+      background: rgba(239,68,68,0.04);
+      border: 1px solid rgba(239,68,68,0.15);
+      border-radius: 8px;
+      margin-bottom: 10px;
+    }
+    .flag-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+    .flag-title { font-size: 11px; font-weight: 700; color: var(--alert); text-transform: uppercase; }
+    .flag-body { font-size: 12px; color: var(--text-secondary); }
+
+    /* ═══════════════════════════════════════════════
+       MODAL
+    ═══════════════════════════════════════════════ */
+    #modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.85);
+      backdrop-filter: blur(10px);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 1000;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+    #modal-overlay.open { opacity: 1; pointer-events: all; }
+
+    .modal {
+      background: var(--bg-card);
+      border: 1px solid rgba(230,211,163,0.18);
+      border-radius: 16px;
+      width: 480px; max-width: 92vw;
+      padding: 24px;
+      display: flex; flex-direction: column; gap: 20px;
+      transform: translateY(20px);
+      transition: transform 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+      box-shadow: 0 30px 80px rgba(0,0,0,0.8), var(--glow-gold);
+    }
+    #modal-overlay.open .modal { transform: translateY(0); }
+
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 2px; }
+
+    #toast-rack {
+      position: fixed;
+      bottom: 24px; left: 50%; transform: translateX(-50%);
+      z-index: 3000;
+      display: flex; flex-direction: column; gap: 8px;
+      align-items: center; pointer-events: none;
+    }
+    .toast {
+      padding: 10px 18px;
+      background: rgba(24, 24, 27, 0.95);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: 12px; font-weight: 500; color: var(--text-primary);
+      display: flex; align-items: center; gap: 10px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      animation: toastUp 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+    }
+    @keyframes toastUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+  </style>
+</head>
+<body>
+<!-- THREE.JS Immersive Background -->
+<canvas id="immersive-canvas"></canvas>
+<header id="header">
+<div class="hd-brand">
+<div class="hd-mark">PN</div>
+<div class="hd-brand-text">
+<div class="hd-brand-name">POLYNOVEA</div>
+<div class="hd-brand-sub">Module 3 · KPI Layer</div>
+</div>
+</div>
+<div class="hd-session">
+<div class="live-badge">
+<div class="live-dot"></div>
+      LIVE
+    </div>
+<div class="hd-venue-block">
+<div class="hd-venue">Venue: Eclipse — South Hall</div>
+<div class="hd-session-meta">Friday Night Session · Operator: R. Almeida · Started 22:14</div>
+</div>
+<div class="hd-timer" id="session-timer">00:00:00</div>
+</div>
+<div class="hd-stats">
+<div class="stat-chip stale">
+<span class="stat-n">3</span>
+<span>Stale</span>
+</div>
+<div class="stat-chip follow">
+<span class="stat-n">1</span>
+<span>Follow-up</span>
+</div>
+</div>
+<div class="hd-controls">
+<div class="hd-op">
+<div class="hd-op-av">RA</div>
+<div class="hd-op-name">R. Almeida</div>
+</div>
+<button class="btn btn-gold" onclick="openQuickLog()">⚡ Quick Log</button>
+<button class="btn btn-ghost" onclick="togglePanel()">☰ Panel</button>
+</div>
+</header>
+<div id="layout">
+<!-- ZONE RAIL: Will be populated by JS with ALL zones -->
+<nav id="zone-rail">
+<div class="rail-label">Zones</div>
+</nav>
+<!-- KPI WORKSPACE: Will show ALL relevant cards for active zone -->
+<main id="workspace">
+<div class="ws-topbar">
+<div class="ws-zone-title">
+<span class="ws-zone-icon" id="ws-icon">🚪</span>
+<div>
+<div class="ws-zone-name" id="ws-zone-name">Entrance</div>
+<div class="ws-zone-desc" id="ws-zone-desc">Arrival, first impressions, initial flow</div>
+</div>
+</div>
+<div class="ws-actions">
+<button class="btn btn-ghost" onclick="markAllRechecked()">↻ Recheck All</button>
+<button class="btn btn-ghost" onclick="openComplaint()" style="color:var(--alert);border-color:rgba(239,68,68,0.25)">⚠ Complaint</button>
+</div>
+</div>
+<div id="kpi-grid"></div>
+</main>
+<!-- RIGHT PANEL: Populated with feed and active data -->
+<aside id="right-panel">
+<div class="panel-tabs">
+<div class="ptab active" id="tab-actions" onclick="switchTab('actions')">Actions</div>
+<div class="ptab" id="tab-feed" onclick="switchTab('feed')">Activity</div>
+<div class="ptab" id="tab-flags" onclick="switchTab('flags')">Flags</div>
+</div>
+<!-- Tab content areas -->
+<div class="panel-body" id="panel-actions">
+<div class="panel-section-label">Quick Actions</div>
+<button class="qa danger" onclick="openComplaint()"><div class="qa-ico">🚨</div>Log Complaint</button>
+<button class="qa" onclick="openQuickLog()"><div class="qa-ico">📝</div>Add Observation Note</button>
+<button class="qa violet" onclick="showToast('Follow-up marked', 'violet')"><div class="qa-ico">🔁</div>Mark Follow-up Needed</button>
+<button class="qa" onclick="openQuickLog()"><div class="qa-ico">⚡</div>Quick KPI Update</button>
+<div class="panel-section-label" style="margin-top:20px;">Zone Health</div>
+<div id="session-health-list"></div>
+</div>
+<div class="panel-body" id="panel-feed" style="display:none">
+<div class="panel-section-label">Real-time Feed</div>
+<div id="feed-list"></div>
+</div>
+<div class="panel-body" id="panel-flags" style="display:none">
+<div class="panel-section-label">Active Warnings</div>
+<div id="flags-list"></div>
+</div>
+</aside>
+</div>
+<!-- QUICK LOG MODAL -->
+<div id="modal-overlay" onclick="handleOverlayClick(event)">
+<div class="modal">
+<div class="modal-title">⚡ Quick KPI Update</div>
+<p style="font-size:12px; color:var(--text-secondary); margin-top:-10px;">Rapid status logging for the current zone.</p>
+<div style="display:flex; flex-direction:column; gap:8px;">
+<label style="font-size:10px; font-weight:700; color:var(--text-disabled); text-transform:uppercase;">Select Family</label>
+<div id="modal-family-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap:6px;">
+<!-- populated by JS -->
+</div>
+</div>
+<div style="display:flex; flex-direction:column; gap:8px;">
+<label style="font-size:10px; font-weight:700; color:var(--text-disabled); text-transform:uppercase;">New Status</label>
+<div style="display:flex; gap:8px;">
+<button onclick="submitLog('ok')" style="flex:1; padding:12px; border-radius:8px; border:1px solid var(--ok); background:var(--ok-bg); color:var(--ok); font-weight:700; cursor:pointer;">NORMAL</button>
+<button onclick="submitLog('watch')" style="flex:1; padding:12px; border-radius:8px; border:1px solid var(--watch); background:var(--watch-bg); color:var(--watch); font-weight:700; cursor:pointer;">WATCH</button>
+<button onclick="submitLog('alert')" style="flex:1; padding:12px; border-radius:8px; border:1px solid var(--alert); background:var(--alert-bg); color:var(--alert); font-weight:700; cursor:pointer;">ALERT</button>
+</div>
+</div>
+<div style="display:flex; gap:10px; justify-content:flex-end; margin-top:10px;">
+<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+</div>
+</div>
+</div>
+<div id="toast-rack"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>
+<script>
+/* ────────────────────────────────────────────
+   DATA MODEL
+──────────────────────────────────────────── */
+const ZONES = [
+  { id:'entrance',    label:'Entrance',    icon:'🚪', desc:'Arrival, first impressions, initial flow',  health:'watch',  relevant:['flow','engagement','environment','commercial'] },
+  { id:'queue',       label:'Queue',       icon:'🚶', desc:'Queue management, wait behaviour, pressure', health:'alert',  relevant:['flow','service','overload','complaints','commercial'] },
+  { id:'main_bar',    label:'Main Bar',    icon:'🥃', desc:'Primary service, ordering, throughput',      health:'ok',     relevant:['service','commercial','flow','overload','complaints'] },
+  { id:'dancefloor',  label:'Dancefloor',  icon:'🎵', desc:'Focal energy zone, engagement epicentre',   health:'ok',     relevant:['engagement','overload','environment','flow','complaints'] },
+  { id:'circulation', label:'Corridor',    icon:'↔',  desc:'Circulation flow, connector zones',          health:'stale',  relevant:['flow','overload','environment'] },
+  { id:'exits',       label:'Exits',       icon:'🚪', desc:'Exit behaviour, egress flow, drift signals', health:'ok',     relevant:['flow','engagement','complaints'] },
+  { id:'quiet',       label:'Quiet Zone',  icon:'🌙', desc:'Recovery, decompression, low-stimulus',      health:'none',   relevant:['overload','environment','service'] },
+  { id:'tables',      label:'Seating',     icon:'🪑', desc:'Tables, dwell behaviour, table spend',       health:'watch',  relevant:['commercial','service','engagement','overload'] },
+];
+
+const KPI_FAMILIES = [
+  { id:'flow', name:'Flow', icon:'🌊', desc:'Movement, density, congestion', signals:['Crowd density comfort','Directional flow stability','Congestion pressure','Queue spillback risk','Circulation clarity','Exit flow stability','Arrival surge intensity','Dwell pattern'] },
+  { id:'service', name:'Service', icon:'⚡', desc:'Speed, load, throughput, friction', signals:['Service speed','Queue pressure','Ordering velocity','Throughput perception','Table turnover pace','Staff load pressure','Service recovery quality','Operational friction'] },
+  { id:'engagement', name:'Engagement', icon:'🔥', desc:'Energy, participation, momentum', signals:['Engagement level','Participation intensity','Dancefloor activation','Focal attention strength','Momentum continuity','Drop-off drift','Social energy','Synchronisation proxy'] },
+  { id:'overload', name:'Overload / Recovery', icon:'⚠️', desc:'Fatigue, sensory load, overstimulation', signals:['Fatigue signals','Sensory load pressure','Thermal discomfort','Irritation / tension cues','Quiet-zone demand','Recovery effectiveness','Decompression success','Overstimulation risk'] },
+  { id:'complaints', name:'Complaints & Risk', icon:'🚨', desc:'Issues, contradictions, friction hotspots', signals:['Complaint rate','Complaint clustering','Issue type by zone','Contradiction marker','High energy + discomfort','High spend + low comfort','Friction hotspot intensity'] },
+  { id:'commercial', name:'Commercial', icon:'💠', desc:'Spend intent, conversion, retention', signals:['Commercial momentum','Spend intent proxy','Purchase conversion flow','Linger-to-order conversion','Demand concentration','Abandonment behaviour','Retention proxy conditions'] },
+  { id:'environment', name:'Environment', icon:'🌡️', desc:'Sound, temperature, atmosphere', signals:['Sound load','Perceived loudness pressure','Thermal comfort','Air-quality comfort','Lighting suitability','Atmosphere coherence','Environmental harshness','Recovery-zone contrast'] },
+];
+
+const FEED_ITEMS = [
+  { type: 'ok', msg: 'Entrance flow stabilized after peak arrival.', time: '2m ago' },
+  { type: 'alert', msg: 'Queue spillback detected at Main Bar West.', time: '5m ago' },
+  { type: 'watch', msg: 'Thermal comfort dropping in Dancefloor B.', time: '12m ago' },
+  { type: 'ok', msg: 'Seating area turnover increased by 15%.', time: '15m ago' },
+  { type: 'violet', msg: 'R. Almeida requested follow-up for Lounge Lights.', time: '22m ago' }
+];
+
+const ACTIVE_FLAGS = [
+  { zone: 'Queue', issue: 'High Congestion Pressure', time: 'Since 22:30' },
+  { zone: 'Dancefloor', issue: 'Overstimulation Risk - Focal Energy High', time: 'Since 22:45' }
+];
+
+/* ────────────────────────────────────────────
+   STATE & INITIALIZATION
+──────────────────────────────────────────── */
+let activeZoneId = 'entrance';
+let sessionStart = Date.now();
+const kpiState = {};
+
+// Initialize full state
+ZONES.forEach(z => {
+  kpiState[z.id] = {};
+  KPI_FAMILIES.forEach(f => {
+    kpiState[z.id][f.id] = { 
+      status: z.id === 'entrance' && f.id === 'flow' ? 'watch' : 'ok', 
+      updatedAt: Date.now() - (Math.random() * 1000000),
+      signals: {}
+    };
+    f.signals.forEach(s => {
+      // Seed some variety
+      const r = Math.random();
+      kpiState[z.id][f.id].signals[s] = r > 0.85 ? 'watch' : (r > 0.95 ? 'alert' : 'ok');
+    });
+  });
+});
+
+function init() {
+  renderRail();
+  renderWorkspace();
+  renderPanelData();
+  startTimer();
+  initThree();
+}
+
+/* ────────────────────────────────────────────
+   UI RENDERING
+──────────────────────────────────────────── */
+function renderRail() {
+  const rail = document.getElementById('zone-rail');
+  rail.innerHTML = '<div class="rail-label">Zones</div>';
+  ZONES.forEach(z => {
+    const btn = document.createElement('button');
+    btn.className = `zone-btn${z.id === activeZoneId ? ' active' : ''}`;
+    btn.onclick = () => { activeZoneId = z.id; renderRail(); renderWorkspace(); };
+    btn.innerHTML = `
+      <div class="zone-icon-wrap">
+        ${z.icon}
+        <div class="zone-pip ${getZoneHealth(z.id)}"></div>
+      </div>
+      <div class="zone-lbl">${z.label}</div>
+    `;
+    rail.appendChild(btn);
+  });
+}
+
+function getZoneHealth(zid) {
+  const zoneStates = Object.values(kpiState[zid]).map(s => s.status);
+  if (zoneStates.includes('alert')) return 'alert';
+  if (zoneStates.includes('watch')) return 'watch';
+  return 'ok';
+}
+
+function renderWorkspace() {
+  const zone = ZONES.find(z => z.id === activeZoneId);
+  document.getElementById('ws-icon').textContent = zone.icon;
+  document.getElementById('ws-zone-name').textContent = zone.label;
+  document.getElementById('ws-zone-desc').textContent = zone.desc;
+
+  const grid = document.getElementById('kpi-grid');
+  grid.innerHTML = '';
+
+  // Show ALL relevant cards for this zone based on data model
+  KPI_FAMILIES.filter(fam => zone.relevant.includes(fam.id)).forEach(fam => {
+    grid.appendChild(createCard(fam, kpiState[activeZoneId][fam.id]));
+  });
+}
+
+function createCard(fam, state) {
+  const card = document.createElement('div');
+  card.className = `kpi-card st-${state.status}`;
+  const badgeLabel = state.status.toUpperCase();
+  const ago = formatAgo(state.updatedAt);
+
+  // Card Content: Header + ALL signals from data model
+  card.innerHTML = `
+    <div class="card-head">
+      <div class="card-family"><span class="card-family-icon">${fam.icon}</span><span class="card-family-name">${fam.name}</span></div>
+      <div class="status-badge st-${state.status}">${badgeLabel}</div>
+    </div>
+    <div class="card-signals">
+      ${fam.signals.map(s => `
+        <div class="signal-row">
+          <span class="sig-name">${s}</span>
+          <div class="sig-indicator ${state.signals[s] || 'ok'}"></div>
+        </div>
+      `).join('')}
+    </div>
+    <div class="card-foot">
+      <div class="card-ts">🕐 ${ago}</div>
+      <div class="card-actions">
+        <button class="card-btn" onclick="showToast('Note added', 'ok')">📝</button>
+        <button class="card-btn upd" onclick="quickUpdate('${fam.id}', 'ok')">Verify</button>
+      </div>
+    </div>
+  `;
+
+  // Apply tilt on mouse move
+  card.addEventListener('mousemove', (e) => {
+    const rect = card.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const rotateX = ((y / rect.height) - 0.5) * -8;
+    const rotateY = ((x / rect.width) - 0.5) * 8;
+    card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateY(-4px)`;
+  });
+  card.addEventListener('mouseleave', () => card.style.transform = '');
+
+  return card;
+}
+
+function renderPanelData() {
+  // Feed list
+  const feedList = document.getElementById('feed-list');
+  feedList.innerHTML = FEED_ITEMS.map(item => `
+    <div class="feed-item">
+      <div class="feed-ico" style="background:var(--${item.type==='violet'?'violet':item.type})"></div>
+      <div class="feed-content">
+        <div class="feed-msg">${item.msg}</div>
+        <div class="feed-meta"><span>${item.time}</span> • <span>Verified</span></div>
+      </div>
+    </div>
+  `).join('');
+
+  // Flags list
+  const flagsList = document.getElementById('flags-list');
+  flagsList.innerHTML = ACTIVE_FLAGS.map(flag => `
+    <div class="flag-card">
+      <div class="flag-head">
+        <div class="flag-title">${flag.zone}</div>
+        <div style="font-size:9px; color:var(--text-disabled)">${flag.time}</div>
+      </div>
+      <div class="flag-body">${flag.issue}</div>
+    </div>
+  `).join('');
+
+  // Session health
+  const healthList = document.getElementById('session-health-list');
+  healthList.innerHTML = ZONES.slice(0,6).map(z => `
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 10px; background:rgba(255,255,255,0.02); border-radius:6px; margin-bottom:4px;">
+      <span style="font-size:12px; color:var(--text-secondary)">${z.icon} ${z.label}</span>
+      <div style="width:6px; height:6px; border-radius:50%; background:var(--${getZoneHealth(z.id)})"></div>
+    </div>
+  `).join('');
+}
+
+/* ────────────────────────────────────────────
+   INTERACTIONS
+──────────────────────────────────────────── */
+function quickUpdate(famId, status) {
+  kpiState[activeZoneId][famId].status = status;
+  kpiState[activeZoneId][famId].updatedAt = Date.now();
+  renderWorkspace();
+  showToast(`Verified ${famId} for ${activeZoneId}`, 'ok');
+}
+
+function openQuickLog() {
+  const grid = document.getElementById('modal-family-grid');
+  grid.innerHTML = KPI_FAMILIES.map(f => `
+    <button class="chip" onclick="this.style.borderColor='var(--gold)';" style="background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:6px; padding:10px; color:var(--text-primary); font-size:11px; cursor:pointer; text-align:left;">
+      ${f.icon} ${f.name}
+    </button>
+  `).join('');
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+
+function handleOverlayClick(e) {
+  if (e.target.id === 'modal-overlay') closeModal();
+}
+
+function submitLog(status) {
+  showToast(`New ${status} entry logged.`, status);
+  closeModal();
+}
+
+function switchTab(tabId) {
+  document.querySelectorAll('.ptab').forEach(t => t.classList.remove('active'));
+  document.getElementById(`tab-${tabId}`).classList.add('active');
+  
+  document.getElementById('panel-actions').style.display = tabId === 'actions' ? 'block' : 'none';
+  document.getElementById('panel-feed').style.display = tabId === 'feed' ? 'block' : 'none';
+  document.getElementById('panel-flags').style.display = tabId === 'flags' ? 'block' : 'none';
+}
+
+function togglePanel() {
+  const panel = document.getElementById('right-panel');
+  panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
+}
+
+function showToast(msg, type='ok') {
+  const rack = document.getElementById('toast-rack');
+  const t = document.createElement('div');
+  t.className = `toast`;
+  const color = type === 'ok' ? 'var(--ok)' : (type === 'watch' ? 'var(--watch)' : (type === 'alert' ? 'var(--alert)' : 'var(--violet)'));
+  t.innerHTML = `<div style="width:8px; height:8px; border-radius:50%; background:${color}"></div> ${msg}`;
+  rack.appendChild(t);
+  setTimeout(() => {
+    t.style.opacity = '0';
+    t.style.transform = 'translateY(-10px)';
+    setTimeout(() => t.remove(), 300);
+  }, 2500);
+}
+
+function formatAgo(ts) {
+  const mins = Math.floor((Date.now() - ts) / 60000);
+  if (mins < 1) return 'Just now';
+  return `${mins}m ago`;
+}
+
+function startTimer() {
+  setInterval(() => {
+    const elapsed = Math.floor((Date.now() - sessionStart) / 1000);
+    const h = String(Math.floor(elapsed / 3600)).padStart(2,'0');
+    const m = String(Math.floor((elapsed % 3600) / 60)).padStart(2,'0');
+    const s = String(elapsed % 60).padStart(2,'0');
+    document.getElementById('session-timer').textContent = `${h}:${m}:${s}`;
+  }, 1000);
+}
+
+/* ────────────────────────────────────────────
+   3D BACKGROUND (Three.js)
+──────────────────────────────────────────── */
+function initThree() {
+  const canvas = document.getElementById('immersive-canvas');
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+  camera.position.z = 5;
+
+  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+
+  const geometry = new THREE.BufferGeometry();
+  const vertices = [];
+  for (let i = 0; i < 1200; i++) {
+    vertices.push(THREE.MathUtils.randFloatSpread(20));
+    vertices.push(THREE.MathUtils.randFloatSpread(20));
+    vertices.push(THREE.MathUtils.randFloatSpread(20));
+  }
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+  const material = new THREE.PointsMaterial({ color: 0xE6D3A3, size: 0.015, transparent: true, opacity: 0.3 });
+  const points = new THREE.Points(geometry, material);
+  scene.add(points);
+
+  function animate() {
+    requestAnimationFrame(animate);
+    points.rotation.y += 0.0004;
+    points.rotation.x += 0.0001;
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body></html>

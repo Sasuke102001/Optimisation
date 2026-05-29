@@ -1,0 +1,42 @@
+{
+  "ST_PASSIVE_OBSERVATION": {
+    "label": "Passive Observation",
+    "aliases": ["arrival/search", "observing", "passive audience", "watching"]
+  },
+  "ST_ENGAGEMENT": {
+    "label": "Engagement",
+    "aliases": ["engaged", "attention lock", "engagement state"]
+  },
+  "ST_PARTICIPATION": {
+    "label": "Participation",
+    "aliases": ["participating", "active participation", "joining in"]
+  },
+  "ST_SYNCHRONIZED_BEHAVIOR": {
+    "label": "Synchronized Behavior",
+    "aliases": ["synchronized crowd behavior", "synchronization", "collective synchrony"]
+  },
+  "ST_EUPHORIA": {
+    "label": "Euphoria",
+    "aliases": ["peak joy", "collective effervescence", "peak emotional state"]
+  },
+  "ST_OVERSTIMULATION": {
+    "label": "Overstimulation",
+    "aliases": ["overstimulated", "sensory overload", "allostatic overload"]
+  },
+  "ST_FATIGUE": {
+    "label": "Fatigue",
+    "aliases": ["fatigued", "depletion", "exhaustion"]
+  },
+  "ST_DISENGAGEMENT": {
+    "label": "Disengagement",
+    "aliases": ["disengaged", "withdrawal", "exit intent"]
+  },
+  "ST_RECOVERY": {
+    "label": "Recovery",
+    "aliases": ["recovering", "decompression", "restoration"]
+  },
+  "ST_REACTIVATION": {
+    "label": "Reactivation",
+    "aliases": ["return intent", "re-engagement", "reactivated"]
+  }
+}

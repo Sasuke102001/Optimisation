@@ -1,0 +1,84 @@
+/* ═══════════════════════════════════════════════════════════
+   BASE STYLING & UTILITIES
+   ═══════════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  background: radial-gradient(circle at 50% 0%, #17141d 0%, #0A0A0A 60%);
+  color: var(--text-primary);
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  position: relative;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("https://www.transparenttextures.com/patterns/carbon-fibre.png");
+  opacity: 0.015;
+  pointer-events: none;
+  z-index: 1;
+}
+
+h1, h2, h3, .clash { font-family: 'Clash Display', sans-serif !important; }
+.space-grotesk { font-family: 'Space Grotesk', sans-serif; }
+
+/* Global Button Styles */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 18px;
+  border-radius: var(--rs);
+  font-family: 'Inter', sans-serif;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  white-space: nowrap;
+}
+.btn:active { transform: scale(0.96); }
+.btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.btn-gold { background: var(--gold); color: #0A0A0A; box-shadow: var(--glow-gold); }
+.btn-gold:hover { background: #ebdcb2; transform: translateY(-1px); }
+.btn-ghost { background: transparent; color: var(--text-secondary); border: 1px solid var(--border); }
+.btn-ghost:hover { border-color: var(--gold-muted); color: var(--text-primary); background: rgba(255,255,255,0.03); }
+.btn-danger { background: rgba(239, 68, 68, 0.15); color: var(--alert); border: 1px solid rgba(239, 68, 68, 0.25); }
+.btn-danger:hover { background: rgba(239, 68, 68, 0.25); }
+
+/* Global Animations */
+@keyframes stepper-flash {
+  0% { background-color: rgba(34, 197, 94, 0.18); box-shadow: 0 0 10px rgba(34, 197, 94, 0.1) inset; }
+  100% { background-color: transparent; box-shadow: none; }
+}
+
+@keyframes progress-pulse {
+  from { opacity: 0.6; }
+  to { opacity: 1; }
+}
+
+@keyframes text-pulse {
+  from { opacity: 0.7; }
+  to { opacity: 1; }
+}
+
+@keyframes pulse-warn {
+  0%, 100% { border-color: rgba(245, 158, 11, 0.45); }
+  50% { border-color: rgba(245, 158, 11, 0.8); }
+}
+
+@keyframes pulse-grey {
+  0%, 100% { opacity: 0.45; transform: scale(0.95); }
+  50% { opacity: 1; transform: scale(1.05); }
+}

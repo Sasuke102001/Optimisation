@@ -1,0 +1,29 @@
+# SSH keys
+keys/
+
+# Environment variables
+.env
+.env.local
+.env.*
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Node
+node_modules/
+dist/
+.next/
+
+# Pipeline vendored deps and generated output
+tools/research_pipeline/.vendor/
+tools/research_pipeline/__pycache__/
+backend/research_pipeline/output/
+backend/research_pipeline/output_se/
+backend/research_pipeline/.manifest_*.json
+
+# OS
+.DS_Store
+Thumbs.db

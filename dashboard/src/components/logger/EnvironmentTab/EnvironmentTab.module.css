@@ -1,0 +1,66 @@
+.envTab {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+}
+
+.envContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.envRowCard {
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.envRowTitle {
+  font-family: 'Clash Display', sans-serif !important;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.incidentRow {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.envIncidentStat {
+  font-size: 11px;
+  color: var(--text-disabled);
+}
+
+.envActionStickyContainer {
+  width: 100%;
+  margin-top: 8px;
+}
+
+@media (max-width: 767px) {
+  .envActionStickyContainer {
+    position: sticky;
+    bottom: 0;
+    background: rgba(10, 10, 10, 0.92);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    padding: 12px 20px;
+    border-top: 1px solid var(--border);
+    z-index: 750;
+    margin-left: -20px;
+    margin-right: -20px;
+    margin-top: auto;
+    width: calc(100% + 40px);
+  }
+
+  .envTab {
+    padding-bottom: 0;
+  }
+}

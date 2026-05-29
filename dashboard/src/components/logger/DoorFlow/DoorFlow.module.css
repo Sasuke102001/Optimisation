@@ -1,0 +1,302 @@
+.doorFlowTab {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+}
+
+.flowInfoBarWrapper {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.flowInfoBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(24, 24, 27, 0.4);
+  border: 1px solid var(--border);
+  border-radius: var(--rs) var(--rs) 0 0;
+  padding: 12px 18px;
+  font-size: 12px;
+}
+
+.flowInfoLabel {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.flowInfoTime {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  color: var(--gold);
+  transition: color 0.3s;
+}
+
+.flowInfoTime.warning {
+  color: var(--watch) !important;
+}
+
+.flowInfoTime.danger {
+  color: var(--alert) !important;
+  animation: text-pulse 1s infinite alternate;
+}
+
+.countdownProgressContainer {
+  width: 100%;
+  height: 3px;
+  background: var(--border);
+  border-radius: 0 0 var(--rs) var(--rs);
+  overflow: hidden;
+  margin-top: -1px;
+}
+
+.countdownProgressBar {
+  height: 100%;
+  width: 100%;
+  background: var(--gold);
+  transition: width 1s linear, background-color 0.5s ease;
+}
+
+.countdownProgressBar.warning {
+  background: var(--watch);
+}
+
+.countdownProgressBar.danger {
+  background: var(--alert);
+  animation: progress-pulse 1s infinite alternate;
+}
+
+.counterBlockContainer {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.counterCard {
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+  cursor: pointer;
+}
+
+.counterCardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.counterCardTitleBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+}
+
+.counterCardTitle {
+  font-family: 'Clash Display', sans-serif !important;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.8px;
+}
+
+.counterCardDesc {
+  font-size: 11px;
+  color: var(--text-disabled);
+}
+
+.counterBodyRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  cursor: default;
+  transition: all 0.2s ease;
+}
+
+.counterCard:hover .counterBodyRow {
+  background: rgba(230, 211, 163, 0.03);
+  border-color: rgba(230, 211, 163, 0.2);
+}
+
+.counterValGiant {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 52px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.btnCounterMinus {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  z-index: 10;
+}
+
+.btnCounterMinus:hover {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: var(--alert);
+}
+
+.btnCounterPlus {
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  background: var(--gold);
+  color: #0A0A0A;
+  border: none;
+  font-size: 28px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--glow-gold);
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 10;
+}
+
+.btnCounterPlus:hover {
+  background: #ebdcb2;
+  transform: scale(1.05);
+}
+
+.btnCounterPlus:active {
+  transform: scale(0.95);
+}
+
+.totalsBar {
+  border-top: 1px dashed var(--border);
+  border-bottom: 1px dashed var(--border);
+  padding: 12px 0;
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.totalStat span {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.historyCard {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--rs);
+  overflow: hidden;
+}
+
+.historyHeader {
+  padding: 12px 16px;
+  font-weight: 700;
+  font-size: 11px;
+  color: var(--text-disabled);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  background: rgba(255, 255, 255, 0.01);
+  user-select: none;
+}
+
+.historyHeader:hover {
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-secondary);
+}
+
+.historyList {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border);
+  transition: max-height 0.3s ease;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.historyList.collapsed {
+  max-height: 0;
+  border-top: none;
+}
+
+.historyEmpty {
+  padding: 16px;
+  text-align: center;
+  color: var(--text-disabled);
+  font-style: italic;
+  font-size: 12px;
+}
+
+.historyItem {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+  font-size: 12px;
+}
+
+.historyItem:last-child {
+  border-bottom: none;
+}
+
+.histTime {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.histData {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+@keyframes progress-pulse {
+  from { opacity: 0.6; }
+  to { opacity: 1; }
+}
+
+@keyframes text-pulse {
+  from { opacity: 0.7; }
+  to { opacity: 1; }
+}
+
+@media (max-width: 767px) {
+  .counterBlockContainer {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .btnCounterPlus {
+    width: 72px;
+    height: 72px;
+  }
+}

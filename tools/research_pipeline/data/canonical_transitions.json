@@ -1,0 +1,74 @@
+{
+  "TRN_PASSIVE_OBSERVATION_TO_ENGAGEMENT": {
+    "label": "Passive Observation to Engagement",
+    "start_state_id": "ST_PASSIVE_OBSERVATION",
+    "end_state_id": "ST_ENGAGEMENT",
+    "transition_type": "escalation",
+    "recovery_edge": false,
+    "allowed_contradiction_hooks": ["familiarity", "narrative_framing", "context_fit"]
+  },
+  "TRN_ENGAGEMENT_TO_PARTICIPATION": {
+    "label": "Engagement to Participation",
+    "start_state_id": "ST_ENGAGEMENT",
+    "end_state_id": "ST_PARTICIPATION",
+    "transition_type": "escalation",
+    "recovery_edge": false,
+    "allowed_contradiction_hooks": ["cultural_norms", "context_fit", "audience_mode"]
+  },
+  "TRN_PARTICIPATION_TO_SYNCHRONIZED_BEHAVIOR": {
+    "label": "Participation to Synchronized Behavior",
+    "start_state_id": "ST_PARTICIPATION",
+    "end_state_id": "ST_SYNCHRONIZED_BEHAVIOR",
+    "transition_type": "escalation",
+    "recovery_edge": false,
+    "allowed_contradiction_hooks": ["density", "sightlines", "shared_identity"]
+  },
+  "TRN_SYNCHRONIZED_BEHAVIOR_TO_EUPHORIA": {
+    "label": "Synchronized Behavior to Euphoria",
+    "start_state_id": "ST_SYNCHRONIZED_BEHAVIOR",
+    "end_state_id": "ST_EUPHORIA",
+    "transition_type": "escalation",
+    "recovery_edge": false,
+    "allowed_contradiction_hooks": ["valence", "legitimacy", "crowd_treatment"]
+  },
+  "TRN_EUPHORIA_TO_OVERSTIMULATION": {
+    "label": "Euphoria to Overstimulation",
+    "start_state_id": "ST_EUPHORIA",
+    "end_state_id": "ST_OVERSTIMULATION",
+    "transition_type": "collapse_risk",
+    "recovery_edge": false,
+    "allowed_contradiction_hooks": ["experience_quality", "density", "intoxication"]
+  },
+  "TRN_OVERSTIMULATION_TO_FATIGUE": {
+    "label": "Overstimulation to Fatigue",
+    "start_state_id": "ST_OVERSTIMULATION",
+    "end_state_id": "ST_FATIGUE",
+    "transition_type": "depletion",
+    "recovery_edge": false,
+    "allowed_contradiction_hooks": ["fomo", "social_pressure", "substance_use"]
+  },
+  "TRN_FATIGUE_TO_DISENGAGEMENT": {
+    "label": "Fatigue to Disengagement",
+    "start_state_id": "ST_FATIGUE",
+    "end_state_id": "ST_DISENGAGEMENT",
+    "transition_type": "de_escalation",
+    "recovery_edge": false,
+    "allowed_contradiction_hooks": ["exit_friction", "safety", "trust_repair"]
+  },
+  "TRN_DISENGAGEMENT_TO_RECOVERY": {
+    "label": "Disengagement to Recovery",
+    "start_state_id": "ST_DISENGAGEMENT",
+    "end_state_id": "ST_RECOVERY",
+    "transition_type": "recovery",
+    "recovery_edge": true,
+    "allowed_contradiction_hooks": ["post_event_environment", "support", "health"]
+  },
+  "TRN_RECOVERY_TO_REACTIVATION": {
+    "label": "Recovery to Reactivation",
+    "start_state_id": "ST_RECOVERY",
+    "end_state_id": "ST_REACTIVATION",
+    "transition_type": "reactivation",
+    "recovery_edge": true,
+    "allowed_contradiction_hooks": ["memory", "life_context", "chronic_fatigue"]
+  }
+}

@@ -1,0 +1,93 @@
+.signalRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 8px;
+  border-radius: 5px;
+  background: rgba(39, 39, 42, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.01);
+}
+
+.sigName {
+  font-size: 11px;
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+}
+
+.srcBadge {
+  display: inline-block;
+  font-size: 7px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 1px 4px;
+  border-radius: 3px;
+  letter-spacing: 0.3px;
+  margin-left: 6px;
+}
+
+.manual {
+  background: var(--src-manual-b);
+  color: var(--src-manual);
+  border: 1px solid rgba(113, 113, 122, 0.1);
+}
+
+.counter {
+  background: var(--src-counter-b);
+  color: var(--src-counter);
+  border: 1px solid rgba(56, 189, 248, 0.1);
+}
+
+.sensor {
+  background: var(--src-sensor-b);
+  color: var(--src-sensor);
+  border: 1px solid rgba(52, 211, 153, 0.1);
+}
+
+.derived {
+  background: var(--src-derived-b);
+  color: var(--src-derived);
+  border: 1px solid rgba(154, 143, 106, 0.1);
+}
+
+.sigInd {
+  width: 6.5px;
+  height: 6.5px;
+  border-radius: 50%;
+}
+
+.ok {
+  background: var(--ok);
+  box-shadow: 0 0 5px var(--ok);
+}
+
+.watch {
+  background: var(--watch);
+  box-shadow: 0 0 5px var(--watch);
+}
+
+.alert {
+  background: var(--alert);
+  box-shadow: 0 0 5px var(--alert);
+}
+
+.none {
+  background: var(--border);
+}
+
+.sigPulseGrey {
+  background: var(--text-disabled) !important;
+  box-shadow: 0 0 6px var(--text-disabled) !important;
+  animation: pulse-grey 1.5s infinite ease-in-out;
+}
+
+@keyframes pulse-grey {
+  0%, 100% {
+    opacity: 0.45;
+    transform: scale(0.95);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}

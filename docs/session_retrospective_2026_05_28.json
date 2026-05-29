@@ -1,0 +1,1330 @@
+{
+  "session_date": "2026-05-28",
+  "session_summary": "Module 3 dashboard debugging and stabilisation, Antigravity visual brief generation, KPI Monitor technical language cleanup, full AI integration architecture design, and final architecture decisions for the complete Module 3 system including separate repos, own FastAPI backend, own research pipeline, DB connection strategy, venue ID anchoring, and segmentation validation via live customer surveys.",
+
+  "topics_covered": {
+
+    "topic_1_dashboard_debugging": {
+      "status": "FIXED — file is stable",
+      "problem": "index.html was completely broken in browser — no JS executed, layout rendered but nothing was interactive.",
+      "root_cause": "JS parse failure at line 2983. The showToast function's closing brace was on the same line as orphaned HTML from an old buildKpiCard template literal: `}        <div class=\"segmented-control\">`. This caused the entire script block to fail to parse. Lines 2983-3097 also contained duplicate function definitions.",
+      "fix_applied": "Python script truncated file at the corrupt marker and replaced with clean closing. File went from 3100 lines to 2986 lines.",
+      "additional_fixes_in_this_session": [
+        "DOMContentLoaded event now calls updateOpenSessionButtonState() on page load",
+        "Open Session button now starts with disabled-state class in HTML so it is visually disabled on load",
+        "Badge color variants added to CSS: badge-baseline (grey), badge-engineered (gold), badge-followup (muted violet)",
+        "Stepper row gap reduced from 10px to 4px — 6-person + button was overflowing the card boundary",
+        "setup-stepper-grid CSS class added for the 3-column stepper container"
+      ],
+      "files_changed": [
+        "D:\\PolyNovea\\PolyNovea\\Docx\\Company Docx\\Module 3 - Optimisation\\dashboard\\index.html"
+      ]
+    },
+
+    "topic_2_antigravity_visual_brief": {
+      "status": "BRIEF DELIVERED — Antigravity implementing",
+      "reference_file": "D:\\PolyNovea\\PolyNovea\\Docx\\Company Docx\\Module 3 - Optimisation\\dashboard\\antigravity_todo.md",
+      "antigravity_completed": [
+        "Counter + button 64x64px gold, - button 36x36px circular muted",
+        "Counter number 52px Space Grotesk bold",
+        "Interval progress bar CSS classes and HTML element in place",
+        "Table tile CSS classes: .table-tile.empty, .table-tile.occupied, .table-tile.warning",
+        "formatKpiTimestamp() function",
+        "Update / Close toggle on expand button",
+        "Badge variants in CSS"
+      ],
+      "antigravity_still_pending": [
+        "Table detail modal bottom sheet on mobile (<1024px)",
+        "Logged vs unlogged card dashed border state",
+        "Zone tab dots coloured by worst-case signal in zone",
+        "Environment tab sticky Save button on mobile",
+        "Environment tab vertical padding increase"
+      ]
+    },
+
+    "topic_3_technical_language_cleanup": {
+      "status": "DONE — live in index.html",
+      "what": "Removed all internal architecture language from the KPI Monitor expanded card view.",
+      "changes_made": {
+        "Live System Signals (Layer A & B)": "→ Auto-tracked data",
+        "Manual Signal Assessment": "→ Your assessment",
+        "DERIVED badge": "→ AUTO (source === derived maps to auto)",
+        "Ingress Rate": "→ Entries this interval",
+        "Comfort Coherence": "→ Comfort score",
+        "Energy Index": "→ Energy level"
+      },
+      "implementation_note": "generateCardSupportData() now uses rawLabels and derivedLabels lookup dictionaries."
+    },
+
+    "topic_4_ai_integration_superseded": {
+      "status": "SUPERSEDED — initial design was to use M2 backend, final decision is M3 gets its own backend",
+      "what_was_built_in_error": [
+        "D:\\PolyNovea\\PolyNovea\\Docx\\Company Docx\\Acquistion System\\App\\backend\\routers\\module3.py — ADDED TO M2 BACKEND, SHOULD BE REMOVED",
+        "build_module3_prompt() and get_module3_system_prompt() added to M2 prompts.py — SHOULD BE REMOVED",
+        "main.py updated to register module3 router — SHOULD BE REVERTED",
+        "D:\\PolyNovea\\PolyNovea\\Docx\\Company Docx\\Module 3 - Optimisation\\supabase_module3_tables.sql — KEEP AS REFERENCE"
+      ],
+      "reason_superseded": "Further discussion revealed Module 3 needs its own AI system with its own research pipeline (music psychology, neuropsychology, environmental psychology) — completely different from M2's behavioural acquisition research. Merging into M2 backend would create uncontrollable coupling. Final decision: separate repo, separate FastAPI, separate research pipeline.",
+      "cleanup_required": [
+        "Remove routers/module3.py from M2 acquisition backend",
+        "Remove build_module3_prompt() and get_module3_system_prompt() from M2 prompts.py",
+        "Revert main.py module3 import and router registration"
+      ]
+    },
+
+    "topic_6_m2_schema_confirmation": {
+      "status": "CONFIRMED — all five tables fully documented",
+      "session_date": "2026-05-28",
+      "purpose": "M3 backend needs exact column structures to safely build fetch_m2_venue_context(). All confirmed from source scripts and schema migration files.",
+
+      "venue_demographic_scores": {
+        "source": "Database/scripts/compute/compute_venue_demographics.py (CREATE TABLE inline) + provenance_schema.py (ALTER TABLE)",
+        "columns": {
+          "id": "SERIAL PRIMARY KEY",
+          "venue_id": "INTEGER NOT NULL REFERENCES venues(id) ON DELETE CASCADE",
+          "segment_id": "VARCHAR(50) NOT NULL",
+          "alignment_score": "FLOAT NOT NULL DEFAULT 0.0",
+          "segment_rank": "INTEGER",
+          "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+          "computed_at": "TIMESTAMPTZ DEFAULT NOW() — added by provenance_schema.py",
+          "pipeline_version": "TEXT DEFAULT '1.0' — added by provenance_schema.py",
+          "schema_version": "INTEGER DEFAULT 1 — added by provenance_schema.py"
+        },
+        "unique_constraint": "(venue_id, segment_id)",
+        "critical_note": "NO source column. One row per (venue_id, segment_id) pair. alignment_score is always the final blended/computed score. segment_id values match M3's survey segment IDs (working_women, office_workers, college_kids, couples, families, premium, solo_diners).",
+        "m3_query_pattern": "SELECT segment_id, alignment_score, segment_rank FROM venue_demographic_scores WHERE venue_id = $1 ORDER BY segment_rank ASC NULLS LAST"
+      },
+
+      "venue_fitness_dimensions": {
+        "source": "Database/sql/001_init_schema.sql (base) + add_source_columns.py (source column migration)",
+        "columns": {
+          "id": "SERIAL PRIMARY KEY",
+          "venue_id": "INTEGER NOT NULL REFERENCES venues(id)",
+          "source": "VARCHAR(50) NOT NULL DEFAULT 'google' — added by migration",
+          "fitness_for_office_lunch": "FLOAT",
+          "fitness_for_repeat_habit": "FLOAT",
+          "fitness_for_social_dwell": "FLOAT",
+          "fitness_for_group_energy": "FLOAT",
+          "fitness_for_destination_visit": "FLOAT",
+          "operational_quality": "FLOAT",
+          "retention_strength": "FLOAT",
+          "monetization_potential": "FLOAT",
+          "fitness_details": "JSONB",
+          "computed_at": "TIMESTAMPTZ",
+          "pipeline_version": "TEXT",
+          "schema_version": "INTEGER"
+        },
+        "unique_constraint": "(venue_id, source)",
+        "known_source_values": ["google", "magicpin_upper", "google_reviews", "manual_reviews", "blended", "manual_bif"],
+        "m3_query_pattern": "SELECT fitness_for_office_lunch, fitness_for_repeat_habit, fitness_for_social_dwell, fitness_for_group_energy, fitness_for_destination_visit, operational_quality, retention_strength, monetization_potential FROM venue_fitness_dimensions WHERE venue_id = $1 AND source = 'blended' LIMIT 1"
+      },
+
+      "raw_venue_data": {
+        "source": "Database/scripts/schema/provenance_schema.py",
+        "columns": {
+          "id": "UUID DEFAULT gen_random_uuid() PRIMARY KEY",
+          "venue_id": "INTEGER REFERENCES venues(id) ON DELETE SET NULL",
+          "platform": "TEXT NOT NULL",
+          "data_type": "TEXT NOT NULL CHECK IN ('api_response','html_scrape','review_batch','geocode_response','search_result')",
+          "raw_payload": "JSONB NOT NULL — dish signals and behavioral mechanisms live here",
+          "collected_at": "TIMESTAMPTZ DEFAULT NOW()",
+          "collector_version": "TEXT DEFAULT '1.0'",
+          "query_params": "JSONB",
+          "schema_version": "INTEGER DEFAULT 1",
+          "is_deleted": "BOOLEAN DEFAULT FALSE"
+        },
+        "m3_note": "No fixed columns for mechanisms — all in raw_payload JSONB. Low priority for M3 initial integration. venue_fitness_dimensions + venue_demographic_scores cover the 80% use case."
+      },
+
+      "venue_similarity_deltas": {
+        "source": "Database/scripts/compute/compute_fitness_deltas.py (CREATE TABLE inline)",
+        "columns": {
+          "id": "SERIAL PRIMARY KEY",
+          "venue_id": "INTEGER NOT NULL REFERENCES venues(id) ON DELETE CASCADE",
+          "similar_venue_id": "INTEGER NOT NULL REFERENCES venues(id) ON DELETE CASCADE",
+          "similarity_rank": "INTEGER",
+          "dimension": "VARCHAR(60) NOT NULL",
+          "delta": "FLOAT NOT NULL"
+        },
+        "unique_constraint": "(venue_id, similar_venue_id, dimension)",
+        "m3_note": "Phase 2 data — shows how a venue compares to its similar venues per fitness dimension. Low priority for initial M3 integration."
+      },
+
+      "fitness_delta_rules": {
+        "source": "Database/scripts/compute/compute_fitness_deltas.py (CREATE TABLE inline)",
+        "columns": {
+          "id": "SERIAL PRIMARY KEY",
+          "dimension": "VARCHAR(60) NOT NULL",
+          "delta_min": "FLOAT NOT NULL",
+          "delta_max": "FLOAT NOT NULL",
+          "direction": "VARCHAR(10) NOT NULL — 'higher' | 'lower' | 'neutral'",
+          "short_label": "VARCHAR(30) NOT NULL",
+          "client_statement": "TEXT NOT NULL",
+          "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        },
+        "m3_note": "Lookup table keyed by dimension + delta range. No venue_id. Used to generate human-readable delta explanations. Can be preloaded at startup — rarely changes."
+      },
+
+      "drift_signals": {
+        "source": "Database/sql/001_init_schema.sql (base) + add_source_columns.py (source column)",
+        "source_column_confirmed": true,
+        "known_source_values": ["google", "google_reviews", "magicpin_upper"],
+        "columns_relevant_to_m3": ["id", "area", "source", "pattern_description", "confidence_score", "trend_direction", "detected_at"]
+      },
+
+      "fetch_m2_venue_context_query_map": {
+        "description": "The exact queries M3's fetch_m2_venue_context(venue_id) function should run when assembling the Layer A behavioral intelligence block for AI prompts.",
+        "query_1_segments": {
+          "purpose": "Primary segment alignment — who comes here",
+          "sql": "SELECT segment_id, alignment_score, segment_rank FROM venue_demographic_scores WHERE venue_id = $1 ORDER BY alignment_score DESC LIMIT 7"
+        },
+        "query_2_fitness": {
+          "purpose": "5 fitness dimensions + commercial summary",
+          "sql": "SELECT fitness_for_office_lunch, fitness_for_repeat_habit, fitness_for_social_dwell, fitness_for_group_energy, fitness_for_destination_visit, operational_quality, retention_strength, monetization_potential FROM venue_fitness_dimensions WHERE venue_id = $1 AND source = 'blended' LIMIT 1"
+        },
+        "query_3_primitives": {
+          "purpose": "Top behavioral signals — what actually drives behavior here",
+          "sql": "SELECT primitive_id, score FROM primitives_scores WHERE venue_id = $1 ORDER BY score DESC LIMIT 15"
+        },
+        "query_4_archetypes": {
+          "purpose": "Customer archetype prevalence — who are they behaviorally",
+          "sql": "SELECT archetype_id, prevalence_score FROM venue_demographic_scores WHERE venue_id = $1 AND archetype_id IS NOT NULL ORDER BY prevalence_score DESC LIMIT 5",
+          "note": "Confirm column name — archetype data may be in separate join table or JSONB in fitness_details. Verify at build time."
+        },
+        "query_5_venue_base": {
+          "purpose": "Venue identity and location context",
+          "sql": "SELECT id, name, area, city, types FROM venues WHERE id = $1 LIMIT 1"
+        },
+        "assembly_order_for_prompt": [
+          "1. venue_base — name, area, city, types",
+          "2. fitness — all 5 dimensions + commercial summary",
+          "3. segments — top 3 by alignment_score with percentages",
+          "4. primitives — top 10 signals as comma-separated list",
+          "5. archetypes — top 3 customer types with prevalence"
+        ]
+      }
+    },
+
+    "topic_5_final_architecture_decisions": {
+      "status": "DECIDED — not yet built",
+
+      "decision_1_separate_repos": {
+        "decision": "Module 3 is a completely separate repository from Module 2. No merging.",
+        "rationale": "Merging would create uncontrollable coupling. M3 has different research, different AI context, different operational purpose. Separate repos allow independent deployment, independent iteration, clear ownership boundaries.",
+        "repo_structure": {
+          "polynovea-acquisition": "Existing M2 repo — FastAPI backend, Next.js frontend, M2 RDS. Untouched.",
+          "polynovea-module3": "New repo — contains /dashboard, /show-engineering, /backend (M3 FastAPI)"
+        }
+      },
+
+      "decision_2_two_apps": {
+        "decision": "Module 3 has two separate frontend apps.",
+        "app_1_dashboard": {
+          "what": "Session management, floor logger, KPI monitoring, interval logging, environment tracking",
+          "what_we_have": "index.html (standalone HTML — to be converted or kept as static)",
+          "calls": "M3 FastAPI backend for KPI writes, AI session briefs, session management"
+        },
+        "app_2_show_engineering": {
+          "what": "Show engineering suggestions, intervention planning, music arc design, behavioral prediction",
+          "calls": "M3 FastAPI backend for show briefs (which reads M2 behavioral data + M3 session history)"
+        }
+      },
+
+      "decision_3_m3_own_ai_system": {
+        "decision": "Module 3 has its own FastAPI backend with its own Council, its own research pipeline, its own prompts.",
+        "rationale": "M3's AI needs an entirely different research corpus than M2. M2 uses behavioural acquisition research (channel effectiveness, segmentation, marketing). M3 needs music psychology, neuropsychology, environmental psychology, crowd synchronisation, cognitive fatigue, stimulus-response mechanisms. Same Council pattern (Nemotron + DeepSeek + Mistral) but completely different knowledge base.",
+        "m3_research_corpus_needed": [
+          "Music psychology and auditory behaviour",
+          "Neuropsychology and emotional response systems",
+          "Environmental psychology (lighting, temperature, spatial density)",
+          "Crowd synchronisation and entrainment",
+          "Rhythm, familiarity vs novelty, emotional triggering",
+          "Cognitive fatigue and recovery behaviour",
+          "Social contagion and group psychology",
+          "Behavioural pacing and momentum"
+        ],
+        "m3_research_pipeline": "Same extraction pipeline as M2 — runs against M3 research corpus at startup, produces m3_claims.json and m3_mechanisms.json for fast lookup in prompts"
+      },
+
+      "decision_4_db_architecture": {
+        "decision": "Three databases, two connection pools in M3 backend.",
+        "m2_rds": {
+          "who_owns": "Module 2",
+          "m3_access": "Read-only pool in M3 backend — venue profiles, segments, primitives, fitness dims, archetypes, dwell patterns",
+          "m3_write_access": "Limited write credentials to two feedback tables only: m3_segment_validation_feedback and m3_venue_behavioral_outcomes",
+          "purpose_for_m3": "Behavioral intelligence layer — who comes to this venue, how they behave, what the venue is calibrated for"
+        },
+        "m3_db": {
+          "who_owns": "Module 3",
+          "access": "Full read/write in M3 backend",
+          "stores": "KPI sessions, raw signals, derived metrics, interventions, implementation outcomes, customer feedback, show plans, prediction snapshots, survey responses, segment validation logs"
+        },
+        "supabase": {
+          "who_owns": "Shared",
+          "stores": "AI debate trees only — M3 council sessions (full R1/R2/synthesis logs for proprietary training data). Not operational data."
+        },
+        "m3_backend_connection_pools": {
+          "get_m3_pool": "M3 DB — full read/write",
+          "get_m2_pool": "M2 RDS — read-only + write to feedback tables only"
+        }
+      },
+
+      "decision_5_venue_id_anchoring": {
+        "decision": "All databases — M2 RDS, M3 DB, Supabase — anchor to the canonical venue_id established in M2's venues table. M3 never generates its own venue IDs.",
+        "rationale": "The venue_id from M2's venue loader is the universal join key across the entire Polynovea system. Without this anchor, cross-module queries (M3 outcomes joined to M2 predictions) are impossible.",
+        "m3_venue_loader_logic": [
+          "Step 1: Query M2 RDS — SELECT id FROM venues WHERE name ILIKE $1",
+          "Step 2a: Found → use that id as venue_id in all M3 tables",
+          "Step 2b: Not found → run M2 venue loader to insert into M2 venues table, capture new id, use that id in M3",
+          "Step 3: Store venue_id in M3 DB venue config table — all subsequent M3 records reference it"
+        ],
+        "implication": "M3 venue loader is essentially the same script as M2 venue loader — it either finds or creates the canonical record in M2 before doing anything in M3."
+      },
+
+      "decision_6_segmentation_validation": {
+        "decision": "M2's segment alignment scores are behavioral hypotheses, not validated demographic facts. Module 3 is where they get validated.",
+        "problem": "Segments like 'Working Women', 'Office Workers', 'Couples' were constructed from review text signals + theoretical mappings. A review saying 'quick service, solo lunch' gets mapped to 'Office Workers' — but the reviewer could be a student or retired person. The alignment score (e.g. 68%) is an inference, not a measurement.",
+        "solution": "In-session QR surveys at the table — 5 questions, voluntary, anonymous, takes 30 seconds. Captures actual demographic signals and behavioral state from real people at that specific venue.",
+        "survey_questions": [
+          "Are you here for: Lunch break / Leisure / Date night / With friends",
+          "How often do you visit: First time / Monthly / Weekly",
+          "Occupation type (optional): Student / Working / Business owner / Other",
+          "Did the music feel right tonight: Yes / Somewhat / No",
+          "Would you stay longer if: Quieter / Louder / Same energy"
+        ],
+        "validation_mechanism": "After 5-7 sessions per venue, compare M2 predicted segment alignment scores against observed survey demographics. Recalibrate venue_demographic_scores.alignment_score in M2 using actual evidence.",
+        "new_tables_required": [
+          "m3_db.customer_survey_responses — individual survey submissions per session",
+          "m3_db.segment_validation_log — per-session: M2 predicted alignment vs M3 observed alignment per segment",
+          "m2_rds.m3_segment_validation_feedback — M3 writes here, M2 reads for recalibration",
+          "m2_rds.m3_venue_behavioral_outcomes — validated dwell, crowd energy, segment actuals"
+        ],
+        "feedback_write": "After each validated session, M3 backend writes to m2_rds.m3_segment_validation_feedback. M2 can then run recalibration queries against this table to update venue_demographic_scores."
+      },
+
+      "decision_7_show_engineering_data_pull": {
+        "decision": "Show Engineering app pulls behavioral data from M2 RDS via M3 backend's read-only M2 connection pool — not through M2's API.",
+        "rationale": "The show engineering AI prompt needs rich behavioral context assembled at request time: segments, primitives, fitness dims, archetypes, dwell profiles. Direct DB access is faster, has no API dependency in the hot path, and allows the same query patterns M2 uses internally.",
+        "m2_data_used_for_show_engineering": [
+          "Segment alignment — who comes to this venue (Social Crowd vs Couples vs Office Workers)",
+          "Behavioral primitives — signals like social_energy, long_dwell, loud_atmosphere_tolerance",
+          "Fitness dimensions — fitness_for_social_dwell, fitness_for_group_energy",
+          "Customer archetypes — Party Seeker vs Discovery Explorer vs Calm Pairs",
+          "Dwell and spend patterns per segment",
+          "Alcohol affinity and ordering patterns"
+        ],
+        "prompt_layers_for_show_engineering": [
+          "Layer A — M2 behavioral intelligence (from M2 RDS via read-only pool)",
+          "Layer B — M3 session history (from M3 DB — prior show outcomes, validated segment data)",
+          "Layer C — M3 research corpus (loaded at startup — music psychology, neuropsychology)",
+          "Layer D — Live state if mid-session (current KPI readings from M3 Dashboard DB)"
+        ]
+      }
+    }
+  },
+
+  "what_was_built_this_session": {
+    "note": "Some files built this session are superseded by final architecture decisions. See cleanup list.",
+    "files_created_keep": [
+      {
+        "file": "D:\\PolyNovea\\PolyNovea\\Docx\\Company Docx\\Module 3 - Optimisation\\supabase_module3_tables.sql",
+        "status": "KEEP AS REFERENCE — tables will be created in Supabase for AI debate logs",
+        "note": "Structure is correct. Will be used when M3 Supabase project is set up."
+      }
+    ],
+    "files_created_superseded": [
+      {
+        "file": "D:\\PolyNovea\\PolyNovea\\Docx\\Company Docx\\Acquistion System\\App\\backend\\routers\\module3.py",
+        "status": "SUPERSEDED — remove from M2 backend. Logic to be rebuilt inside M3 repo's own backend.",
+        "action_required": "DELETE from M2 acquisition repo"
+      },
+      {
+        "file": "D:\\PolyNovea\\PolyNovea\\Docx\\Company Docx\\Acquistion System\\App\\backend\\prompts.py",
+        "status": "build_module3_prompt() and get_module3_system_prompt() added — REMOVE THESE FUNCTIONS",
+        "action_required": "Remove the two new functions added at bottom of prompts.py. Revert to original file."
+      },
+      {
+        "file": "D:\\PolyNovea\\PolyNovea\\Docx\\Company Docx\\Acquistion System\\App\\backend\\main.py",
+        "status": "module3 router import and registration added — REVERT",
+        "action_required": "Remove 'from routers import module3' and the include_router line for module3"
+      }
+    ]
+  },
+
+  "master_todo_list": {
+
+    "phase_0_cleanup": {
+      "priority": "COMPLETE ✓",
+      "completed_date": "2026-05-28",
+      "tasks": [
+        {
+          "id": "P0-1",
+          "task": "Remove routers/module3.py from M2 acquisition backend",
+          "status": "DONE — file deleted"
+        },
+        {
+          "id": "P0-2",
+          "task": "Remove build_module3_prompt() and get_module3_system_prompt() from M2 prompts.py",
+          "status": "DONE — prompts.py truncated to 910 lines, ends cleanly at get_system_prompt()"
+        },
+        {
+          "id": "P0-3",
+          "task": "Revert main.py — remove module3 import and router registration",
+          "status": "DONE — main.py clean, last router is demo.router"
+        }
+      ]
+    },
+
+    "phase_1_m2_feedback_tables": {
+      "priority": "COMPLETE ✓",
+      "completed_date": "2026-05-28",
+      "description": "DDL written and saved. Two feedback tables for M3→M2 write-back. Pending: run against live M2 RDS + create m3_app_user role.",
+      "ddl_file": "D:\\PolyNovea\\PolyNovea\\Docx\\Company Docx\\Acquistion System\\App\\backend\\db\\m3_feedback_tables.sql",
+      "tasks": [
+        {
+          "id": "P1-1",
+          "task": "Write DDL for m3_segment_validation_feedback table",
+          "status": "DONE — DDL written with GENERATED ALWAYS delta column, confidence CHECK, index on (venue_id, segment_id, session_date DESC)"
+        },
+        {
+          "id": "P1-2",
+          "task": "Write DDL for m3_venue_behavioral_outcomes table",
+          "status": "DONE — DDL written with intervention tracking, data_quality CHECK, two indexes"
+        },
+        {
+          "id": "P1-3",
+          "task": "Run DDL against live M2 RDS",
+          "status": "PENDING — DDL is written and saved, has not been executed yet. Run m3_feedback_tables.sql in M2 RDS (not Supabase)."
+        },
+        {
+          "id": "P1-4",
+          "task": "Create m3_app_user role and grant permissions",
+          "status": "PENDING — grant block is in m3_feedback_tables.sql as commented-out SQL. Uncomment and run as M2 RDS superuser. Replace 'your_password' with real credentials."
+        }
+      ]
+    },
+
+    "phase_2_m3_repo_and_structure": {
+      "priority": "HIGH — foundation for everything",
+      "tasks": [
+        {
+          "id": "P2-1",
+          "task": "Create polynovea-module3 GitHub repository",
+          "structure": {
+            "/backend": "M3 FastAPI backend",
+            "/dashboard": "App 1 — session management dashboard",
+            "/show-engineering": "App 2 — show engineering frontend",
+            "/shared": "Shared types, API client config, constants"
+          }
+        },
+        {
+          "id": "P2-2",
+          "task": "Set up M3 FastAPI backend skeleton",
+          "files_to_create": [
+            "backend/main.py — FastAPI app with lifespan, CORS, router registration",
+            "backend/database.py — init_m3_pool(), init_m2_pool(), get_m3_pool(), get_m2_pool()",
+            "backend/prompts.py — M3-specific, separate from M2. Loads M3 research files.",
+            "backend/routers/__init__.py",
+            "backend/models.py — Pydantic models for M3 requests",
+            "backend/.env.example — M3_DATABASE_URL, M2_DATABASE_URL (read-only), NVIDIA_API_KEY, MISTRAL_API_KEY, SUPABASE_URL, SUPABASE_SECRET_KEY"
+          ]
+        },
+        {
+          "id": "P2-3",
+          "task": "Set up M3 backend deployment on EC2",
+          "note": "Either separate EC2 instance or same EC2 on different port (e.g. 8001 vs M2's 8000). Nginx routes /api/m3/* to port 8001."
+        }
+      ]
+    },
+
+    "phase_3_venue_loader": {
+      "priority": "HIGH — all M3 data depends on correct venue IDs",
+      "description": "Module 3 must use the same canonical venue_ids as Module 2. The M3 venue loader either finds an existing M2 venue_id or creates one through M2's venue loader before creating any M3 records.",
+      "tasks": [
+        {
+          "id": "P3-1",
+          "task": "Write M3 venue loader script",
+          "logic": [
+            "Accept venue name + location as input",
+            "Query M2 RDS: SELECT id, name, area, city FROM venues WHERE LOWER(name) ILIKE $1",
+            "If found: confirm match with operator, use existing id as canonical venue_id",
+            "If not found: run M2 venue loader to insert into M2 venues table, capture new id",
+            "Insert into M3 DB venues config table with the canonical venue_id",
+            "Return venue_id for use in all subsequent M3 setup"
+          ],
+          "file": "backend/scripts/venue_loader.py"
+        },
+        {
+          "id": "P3-2",
+          "task": "Create M3 DB venue config table (first M3 table to create)",
+          "fields": ["id BIGSERIAL PK", "venue_id INT NOT NULL (canonical M2 venue_id)", "venue_name TEXT", "area TEXT", "city TEXT", "added_at TIMESTAMPTZ", "active BOOLEAN DEFAULT TRUE"],
+          "note": "All other M3 tables reference venue_id as FK. This table is the anchor."
+        }
+      ]
+    },
+
+    "phase_4_m3_database_schema": {
+      "priority": "HIGH — all operational data depends on this",
+      "description": "Write and run the full M3 DB DDL. Based on module_3_db_plan.md (30 tables) plus new tables identified this session.",
+      "reference": "D:\\PolyNovea\\PolyNovea\\Docx\\Company Docx\\Module 3 - Optimisation\\Module 3 DB\\module_3_db_plan.md",
+      "tasks": [
+        {
+          "id": "P4-1",
+          "task": "Write Phase 1 DDL — core operational tables (venues, sessions, floor logger, KPI logs)",
+          "tables": ["m3_venues (venue config with M2 venue_id anchor)", "m3_sessions", "m3_raw_signals", "m3_derived_metrics", "m3_kpi_logs", "m3_environment_logs"],
+          "note": "These are needed before the dashboard can write any operational data"
+        },
+        {
+          "id": "P4-2",
+          "task": "Write Phase 2 DDL — show engineering and intervention tables",
+          "tables": ["m3_show_plans", "m3_interventions", "m3_implementation_outcomes", "m3_prediction_snapshots"]
+        },
+        {
+          "id": "P4-3",
+          "task": "Write Phase 3 DDL — validation and feedback tables",
+          "tables": ["m3_customer_survey_responses", "m3_segment_validation_log", "m3_venue_behavioral_history"]
+        },
+        {
+          "id": "P4-4",
+          "task": "Create Supabase tables for AI debate logs (from supabase_module3_tables.sql)",
+          "file": "D:\\PolyNovea\\PolyNovea\\Docx\\Company Docx\\Module 3 - Optimisation\\supabase_module3_tables.sql",
+          "action": "Run in Supabase SQL editor for M3 project"
+        }
+      ]
+    },
+
+    "phase_5_m3_research_layer": {
+      "priority": "HIGH — required before M3 AI can generate any briefs",
+      "description": "Module 3's AI needs a completely different research corpus from M2. M3 is about engineering live behavioral outcomes through music, environment, and intervention — not about acquisition and marketing.",
+      "tasks": [
+        {
+          "id": "P5-1",
+          "task": "Collect and write M3 research .md files",
+          "files_needed": [
+            "music_psychology_and_auditory_behaviour.md",
+            "neuropsychology_emotional_response_systems.md",
+            "environmental_psychology_lighting_temperature_density.md",
+            "crowd_synchronisation_and_entrainment.md",
+            "rhythm_familiarity_novelty_emotional_triggering.md",
+            "cognitive_fatigue_and_recovery_behaviour.md",
+            "social_contagion_and_group_psychology.md",
+            "behavioural_pacing_and_momentum.md",
+            "peak_end_rule_and_emotional_memory.md",
+            "dwell_extension_mechanisms.md"
+          ],
+          "note": "These are the equivalent of M2's PHASE_1_INDIA_BEHAVIORAL_RESEARCH.md etc. — loaded at M3 backend startup."
+        },
+        {
+          "id": "P5-2",
+          "task": "Build M3 research extraction pipeline",
+          "what": "Same pipeline as M2's research_pipeline — extracts claims, confidence scores, mechanism mappings from M3 research files. Produces m3_claims.json and m3_mechanisms.json.",
+          "output": "backend/research_pipeline/output/m3_claims.json, m3_mechanisms.json",
+          "note": "Run once after research files are written. Results loaded at startup — zero runtime cost."
+        }
+      ]
+    },
+
+    "phase_6_m3_ai_system": {
+      "priority": "HIGH — core intelligence layer",
+      "tasks": [
+        {
+          "id": "P6-1",
+          "task": "Build M3 council.py — same 3-model pattern as M2",
+          "file": "backend/routers/council.py",
+          "note": "Same Nemotron + DeepSeek + Mistral structure, same 3-round debate, same synthesis streaming. Copy pattern from M2 council.py. Council itself is model-agnostic — what changes is the system prompt it receives."
+        },
+        {
+          "id": "P6-2",
+          "task": "Build M3 prompts.py — M3-specific system prompt builders",
+          "file": "backend/prompts.py",
+          "functions_to_build": [
+            "build_session_brief_prompt(venue_id, session_number, session_mode, table_config, m2_profile, m3_history, live_state) — for dashboard pre/mid/post session briefs",
+            "build_show_engineering_prompt(venue_id, session_number, m2_profile, m3_history, prior_show_outcomes, live_state) — for show engineering app",
+            "get_session_brief_system_prompt() — wraps identity guardrail + session brief prompt",
+            "get_show_engineering_system_prompt() — wraps identity guardrail + show engineering prompt"
+          ],
+          "prompt_structure_per_brief": [
+            "Layer A: M2 behavioral intelligence (segments, primitives, fitness, archetypes, dwell)",
+            "Layer B: M3 session/show history (prior outcomes, validated segment data, intervention history)",
+            "Layer C: M3 research corpus (music psychology, neuropsychology — loaded at startup)",
+            "Layer D: Live state if mid-session (current KPI readings)"
+          ],
+          "intelligence_modes": {
+            "theory_mode": "Sessions 1-2: uses Layer A (M2 profile) + Layer C (research) only",
+            "history_mode": "Sessions 3+: adds Layer B (prior session/show history and validated outcomes)"
+          }
+        },
+        {
+          "id": "P6-3",
+          "task": "Build routers/session_brief.py — dashboard AI brief endpoint",
+          "file": "backend/routers/session_brief.py",
+          "endpoint": "POST /api/session/brief",
+          "accepts": ["venue_id INT", "session_number INT", "session_mode TEXT (pre_session/mid_session/post_session)", "table_config JSONB", "live_state JSONB optional", "prior_session_summaries JSONB optional", "mode TEXT (council/fast)"],
+          "flow": "Fetch M2 profile via get_m2_pool() → fetch M3 history via get_m3_pool() → build system prompt → run Council → stream synthesis → log to Supabase async → extract prediction_snapshot async (pre_session only)"
+        },
+        {
+          "id": "P6-4",
+          "task": "Build routers/show.py — show engineering AI brief endpoint",
+          "file": "backend/routers/show.py",
+          "endpoint": "POST /api/show/brief",
+          "accepts": ["venue_id INT", "session_number INT", "show_type TEXT", "prior_show_outcomes JSONB optional", "live_state JSONB optional", "mode TEXT (council/fast)"],
+          "flow": "Fetch M2 behavioral profile → fetch M3 show history → build show engineering prompt → run Council → stream → log to Supabase async"
+        }
+      ]
+    },
+
+    "phase_7_m3_kpi_router": {
+      "priority": "HIGH — dashboard cannot write data without this",
+      "tasks": [
+        {
+          "id": "P7-1",
+          "task": "Build routers/kpi.py — receives KPI signal writes from Dashboard",
+          "file": "backend/routers/kpi.py",
+          "endpoints": [
+            "POST /api/kpi/session/start — creates session record, returns session_id",
+            "POST /api/kpi/session/{id}/signal — writes raw signal entry (entry_count, exit_count, table_occupancy, etc.)",
+            "POST /api/kpi/session/{id}/interval — submits interval snapshot with derived metrics",
+            "POST /api/kpi/session/{id}/environment — logs environment tab state (sound, temp, energy)",
+            "POST /api/kpi/session/{id}/end — closes session, triggers prediction comparison if pre-session brief exists",
+            "GET /api/kpi/session/{id} — returns current session state for dashboard display"
+          ]
+        }
+      ]
+    },
+
+    "phase_8_segment_validation_system": {
+      "priority": "MEDIUM — critical for the M2 feedback loop but not blocking initial launch",
+      "tasks": [
+        {
+          "id": "P8-1",
+          "task": "Build customer survey QR system",
+          "what": "Generate a QR code per session that links to a simple 5-question survey page. Responses stored in m3_customer_survey_responses table.",
+          "survey_fields": ["visit_occasion", "visit_frequency", "occupation_type", "music_feel", "dwell_extension_intent", "group_size_observed (operator)", "estimated_age_range (operator)"]
+        },
+        {
+          "id": "P8-2",
+          "task": "Build routers/feedback.py — M3 to M2 validation write-back",
+          "file": "backend/routers/feedback.py",
+          "what": "After session ends and survey responses are collected, compute segment validation scores and write back to M2 RDS feedback tables.",
+          "logic": [
+            "Compare M2's predicted alignment_score per segment against observed survey demographics",
+            "Calculate delta (predicted vs observed)",
+            "Write to m2_rds.m3_segment_validation_feedback",
+            "Write session summary to m2_rds.m3_venue_behavioral_outcomes",
+            "Trigger runs automatically after session close — fire and forget"
+          ]
+        },
+        {
+          "id": "P8-3",
+          "task": "Add recalibration query to M2 backend",
+          "what": "M2 reads m3_segment_validation_feedback and updates venue_demographic_scores.alignment_score using weighted average of M2 predicted vs M3 observed values over N sessions.",
+          "trigger": "Manual trigger initially (run when enough sessions accumulated). Automated later.",
+          "file": "M2 acquisition backend — new script or endpoint"
+        }
+      ]
+    },
+
+    "phase_9_dashboard_frontend_wiring": {
+      "priority": "HIGH — dashboard currently has no backend connection",
+      "tasks": [
+        {
+          "id": "P9-1",
+          "task": "Wire dashboard index.html to M3 FastAPI backend",
+          "calls_to_add": [
+            "Session start → POST /api/kpi/session/start",
+            "Interval submit → POST /api/kpi/session/{id}/interval",
+            "Environment save → POST /api/kpi/session/{id}/environment",
+            "Session end → POST /api/kpi/session/{id}/end",
+            "AI brief button → POST /api/session/brief",
+            "Load prior session state → GET /api/kpi/session/{id}"
+          ],
+          "note": "Antigravity handles the frontend changes. Claude writes the API spec for each call."
+        },
+        {
+          "id": "P9-2",
+          "task": "Complete remaining Antigravity visual work before wiring",
+          "pending": [
+            "Table detail modal bottom sheet on mobile (<1024px)",
+            "Logged vs unlogged KPI card dashed border state",
+            "Zone tab dots coloured by worst-case signal",
+            "Environment tab sticky Save button on mobile",
+            "Environment tab vertical padding"
+          ]
+        }
+      ]
+    },
+
+    "phase_10_show_engineering_frontend": {
+      "priority": "MEDIUM — separate app, depends on M3 backend being live",
+      "tasks": [
+        {
+          "id": "P10-1",
+          "task": "Design Show Engineering app UI — brief it to Antigravity",
+          "screens": [
+            "Venue selector + session context input",
+            "Show brief generation (Council deliberating → phase markers → synthesis stream)",
+            "Prior show history view",
+            "Intervention tracker — log what was implemented and outcome"
+          ]
+        },
+        {
+          "id": "P10-2",
+          "task": "Build Show Engineering frontend",
+          "calls": ["POST /api/show/brief", "GET /api/show/history/{venue_id}", "POST /api/show/outcome"]
+        }
+      ]
+    },
+
+    "phase_11_deployment": {
+      "priority": "FINAL — after all backend and frontend work complete",
+      "tasks": [
+        {
+          "id": "P11-1",
+          "task": "Set up M3 EC2 process (or port separation on existing EC2)",
+          "note": "M3 FastAPI runs on port 8001. Nginx routes accordingly."
+        },
+        {
+          "id": "P11-2",
+          "task": "Set M3 backend environment variables on EC2",
+          "vars": ["M3_DATABASE_URL", "M2_DATABASE_URL (read-only credentials)", "NVIDIA_API_KEY", "MISTRAL_API_KEY", "SUPABASE_URL", "SUPABASE_SECRET_KEY"]
+        },
+        {
+          "id": "P11-3",
+          "task": "Deploy Dashboard to Vercel (from polynovea-module3 repo /dashboard)",
+          "note": "Separate Vercel project from acquisition system"
+        },
+        {
+          "id": "P11-4",
+          "task": "Deploy Show Engineering to Vercel (from polynovea-module3 repo /show-engineering)",
+          "note": "Second Vercel project from same repo"
+        },
+        {
+          "id": "P11-5",
+          "task": "Update M3 backend CORS to include both Vercel deployment URLs",
+          "file": "backend/main.py"
+        }
+      ]
+    }
+  },
+
+  "key_files": {
+    "master_todo": "D:\\PolyNovea\\PolyNovea\\Docx\\Company Docx\\Module 3 - Optimisation\\docs\\m3_todo.md",
+    "dashboard_legacy": "D:\\PolyNovea\\PolyNovea\\Docx\\Company Docx\\Module 3 - Optimisation\\dashboard\\index.html",
+    "antigravity_react_brief": "D:\\PolyNovea\\PolyNovea\\Docx\\Company Docx\\Module 3 - Optimisation\\dashboard\\antigravity_react_migration_brief.md",
+    "antigravity_todo": "D:\\PolyNovea\\PolyNovea\\Docx\\Company Docx\\Module 3 - Optimisation\\dashboard\\antigravity_todo.md",
+    "backend_env": "D:\\PolyNovea\\PolyNovea\\Docx\\Company Docx\\Module 3 - Optimisation\\backend\\.env",
+    "research_profiles": "D:\\PolyNovea\\PolyNovea\\Docx\\Company Docx\\Module 3 - Optimisation\\tools\\research_pipeline\\src\\research_extraction\\research_profiles.py",
+    "pipeline_script": "D:\\PolyNovea\\PolyNovea\\Docx\\Company Docx\\Module 3 - Optimisation\\tools\\research_pipeline\\scripts\\run_pipeline.py",
+    "pipeline_output": "D:\\PolyNovea\\PolyNovea\\Docx\\Company Docx\\Module 3 - Optimisation\\backend\\research_pipeline\\output\\",
+    "module3_architecture": "D:\\PolyNovea\\PolyNovea\\Docx\\Company Docx\\Module 3 - Optimisation\\Module 3 DB\\module_3_refined_architecture.md",
+    "module3_db_plan": "D:\\PolyNovea\\PolyNovea\\Docx\\Company Docx\\Module 3 - Optimisation\\Module 3 DB\\module_3_db_plan.md",
+    "supabase_tables_sql": "D:\\PolyNovea\\PolyNovea\\Docx\\Company Docx\\Module 3 - Optimisation\\supabase_module3_tables.sql",
+    "m2_feedback_tables_ddl": "D:\\PolyNovea\\PolyNovea\\Docx\\Company Docx\\Acquistion System\\App\\backend\\db\\m3_feedback_tables.sql",
+    "m2_system_documentation": "D:\\PolyNovea\\PolyNovea\\Docx\\Company Docx\\Acquistion System\\SYSTEM_DOCUMENTATION.md",
+    "m2_council_pattern": "D:\\PolyNovea\\PolyNovea\\Docx\\Company Docx\\Acquistion System\\App\\backend\\routers\\council.py",
+    "m2_prompts_pattern": "D:\\PolyNovea\\PolyNovea\\Docx\\Company Docx\\Acquistion System\\App\\backend\\prompts.py",
+    "m2_main": "D:\\PolyNovea\\PolyNovea\\Docx\\Company Docx\\Acquistion System\\App\\backend\\main.py",
+    "m2_schema_notes": {
+      "venue_demographic_scores": "No source col. UNIQUE(venue_id, segment_id). alignment_score = final blended.",
+      "venue_fitness_dimensions": "Has source col. Query source='blended'. Columns: fitness_for_office_lunch, repeat_habit, social_dwell, group_energy, destination_visit + operational_quality, retention_strength, monetization_potential + fitness_details JSONB.",
+      "primitives_scores": "Has source col. Columns: venue_id, primitive_id (or signal_id — verify), score.",
+      "fitness_delta_rules": "Lookup table. Columns: dimension, delta_min, delta_max, direction, short_label, client_statement.",
+      "venue_similarity_deltas": "Columns: venue_id, similar_venue_id, similarity_rank, dimension, delta. UNIQUE(venue_id, similar_venue_id, dimension).",
+      "drift_signals": "Has source col. Columns: id, area, source, pattern_description, confidence_score, trend_direction, detected_at.",
+      "raw_venue_data": "UUID PK. Columns: venue_id, platform, data_type, raw_payload JSONB, collected_at, collector_version."
+    }
+  },
+
+  "session_2026_05_29": {
+
+    "topic_7_research_pipeline_full_run": {
+      "status": "COMPLETE",
+      "date": "2026-05-29",
+      "what": "Full pipeline rerun after folder reorganisation and research_profiles.py rewrite. All 24 research files profiled with correct snake_case names. LLM extraction enabled (NVIDIA meta/llama-3.3-70b-instruct).",
+      "path_patches_applied": {
+        "_default_research_dir": "parents[4] / 'backend' / 'research'",
+        "_default_output_dir": "parents[4] / 'backend' / 'research_pipeline' / 'output'"
+      },
+      "results": {
+        "sections": 986,
+        "variables": 24,
+        "states": 20,
+        "relationships": 596,
+        "interventions": 87,
+        "kpis": 68,
+        "temporal_dynamics": 131,
+        "rag_chunks": 1318,
+        "evidence": 392,
+        "contradictions": 341,
+        "review_queue": 221,
+        "rejected_entities": 370,
+        "missing_canonical_transitions": 9
+      },
+      "note": "Interventions/KPIs slightly lower than regex-only run because LLM now validates and rejects noise (370 rejected entities). 87 clean interventions > 99 noisy ones. review_queue of 221 items available via build_review_decisions_template.py."
+    },
+
+    "topic_8_m3_m2_integration_finalized": {
+      "status": "DECIDED — DDL pending",
+      "date": "2026-05-29",
+      "integration_pattern": "Push model — M3 writes into M2's RDS via m3_app_user role. M2 does not pull from M3.",
+      "bayesian_blend_decision": {
+        "what": "No override logic. M3 observations are a third evidence layer weighted by temporal coverage and session count. M2's recalibration pipeline blends: venue-type prior + platform evidence + M3 evidence.",
+        "rationale": "M3 runs weekend evenings only — not daily. 3 Friday night sessions must not override scores built from 2 years of platform data across all days and times. The Bayesian machinery in M2 handles the blending correctly.",
+        "weight_formula": "M3 evidence weight ∝ session_count × temporal_coverage (weekend-only gets lower weight on weekday dimensions) × session_mode_bias (engineered sessions down-weighted vs observation_only)"
+      },
+      "session_mode_semantics": {
+        "values": ["observation_only", "engineering_active", "post_intervention"],
+        "observation_only": "No SE intervention active. Natural venue behaviour. M2 weights highest for recalibration.",
+        "engineering_active": "SE intervention deployed and live during this observation window. M2 weights lower or excludes from natural fitness dimensions.",
+        "post_intervention": "Within 15-minute cooldown after intervention ended. Effect may still be decaying. M2 treats with caution.",
+        "granularity": "Row-level on each feed table — not session-level. A single session moves through all three states.",
+        "requires": "m3_intervention_log table to track intervention start/end times so each feed row can be correctly tagged"
+      },
+      "four_m2_feed_tables": {
+        "m3_kpi_observations": "Zone-level KPI RAG readings per session → feeds operational_quality, group_energy, retention_strength",
+        "m3_dwell_observations": "Dwell distributions per table/segment → feeds fitness_for_social_dwell, retention_strength",
+        "m3_segment_table_log": "Granular segment-table observations → feeds alignment_score recalibration",
+        "m3_segment_validation_feedback": "Already designed in m3_feedback_tables.sql. Aggregated per-session write. Stays as-is."
+      },
+      "required_columns_on_all_feed_tables": {
+        "venue_id": "INT REFERENCES venues(id)",
+        "session_number": "INT — must match m3_venue_behavioral_outcomes.session_number exactly",
+        "session_mode": "VARCHAR — observation_only / engineering_active / post_intervention",
+        "day_of_week": "INT — 1=Monday, 7=Sunday (ISO, for arithmetic coverage weighting)",
+        "session_start_hour": "INT — 0-23 (time-of-day dimension coverage)"
+      },
+      "dimensions_never_override": ["fitness_for_destination_visit", "fitness_for_office_lunch (unless M3 explicitly logs a lunch session)"]
+    },
+
+    "topic_9_azure_infrastructure": {
+      "status": "PROVISIONED",
+      "date": "2026-05-29",
+      "azure_postgresql": {
+        "server_name": "polynovea-m3",
+        "hostname": "polynovea-m3.postgres.database.azure.com",
+        "region": "Central India",
+        "tier": "Burstable B1MS — 1 vCore, 2 GiB RAM, 32 GiB storage",
+        "postgresql_version": "18",
+        "resource_group": "polynovea-m3-rg",
+        "admin_user": "subrojitroy",
+        "cost": "Free for 12 months (750 hours/month free tier, account created May 2026)",
+        "firewall_rules": ["103.195.202.205 (dev machine)", "43.205.229.130 (M2 EC2)"],
+        "env_file": "D:\\PolyNovea\\PolyNovea\\Docx\\Company Docx\\Module 3 - Optimisation\\backend\\.env"
+      },
+      "azure_vm": {
+        "vm_name": "polynovea-m3-api",
+        "region": "Central India",
+        "image": "Ubuntu Server 22.04 LTS x64 Gen2",
+        "size": "Standard_B2ats_v2 — 2 vCPU, 1 GiB RAM (AMD burstable)",
+        "cost": "Free for 12 months (750 hours/month free tier)",
+        "auth": "SSH — key pair polynovea-m3-key (downloaded at creation)",
+        "username": "subrojitroy",
+        "purpose": "M3 FastAPI backend — runs on port 8001, same-region as PostgreSQL for fast DB queries",
+        "status": "Provisioning in progress at session end"
+      },
+      "infrastructure_rationale": {
+        "why_azure_not_ec2": "M2 EC2 is t3.micro (1 GiB RAM) — already running M2 FastAPI. Adding M3 would be tight. Azure free tier gives separate free resource bucket.",
+        "why_azure_not_aws_second_instance": "Would consume AWS credits faster. Azure free tier is independent.",
+        "cross_cloud_latency": "Not a concern — M3 feed writes to M2 RDS are post-session batch writes, not real-time.",
+        "same_region_benefit": "Central India VM → Central India PostgreSQL is local network for M3's primary DB queries."
+      }
+    },
+
+    "topic_10_dashboard_react_migration": {
+      "status": "BRIEF DELIVERED — Antigravity implementing",
+      "date": "2026-05-29",
+      "brief_file": "D:\\PolyNovea\\PolyNovea\\Docx\\Company Docx\\Module 3 - Optimisation\\dashboard\\antigravity_react_migration_brief.md",
+      "stack": "React + Vite + TypeScript + Zustand",
+      "rationale": "3185-line single-file index.html was reaching limits of the approach. Proper component structure now so backend wiring later is fetch() swap only — no refactor.",
+      "structure": {
+        "components": "setup/, logger/, monitor/, shared/",
+        "hooks": "useSession, useTableState, useKPIState, useInterval",
+        "store": "Zustand sessionStore (replaces all window.state / localStorage)",
+        "styles": "tokens.css (CSS variables verbatim from index.html), globals.css"
+      },
+      "two_fixes_during_migration": [
+        "QuickEnvCheck: replace <select> dropdowns with SegmentedControl components",
+        "ZoneTabBar: add status dot (green/amber/red/grey) per zone tab"
+      ],
+      "previous_antigravity_pass": {
+        "completed": ["Three.js removed", "Session mode badges (baseline/engineered/followup)", "Countdown progress bar", "Unlogged KPI card state", "Bottom sheet modal CSS", "Quick environment check container (with dropdowns — to be fixed in migration)"],
+        "not_completed": ["Zone tab status dots", "QuickEnvCheck segmented buttons (used dropdowns instead)"]
+      }
+    }
+  },
+
+  "context_for_next_session": {
+    "phases_complete": [
+      "Phase 0 — M2 cleanup DONE",
+      "Phase 1 — DDL written DONE (P1-3 and P1-4 still need to run against live RDS)",
+      "Folder reorganisation — DONE (Antigravity)",
+      "Research pipeline — DONE (all 24 profiles, LLM active)",
+      "Azure infrastructure — DONE (PostgreSQL + VM provisioned)"
+    ],
+    "immediate_first_actions": [
+      "1. Confirm Azure VM is fully provisioned and get its public IP",
+      "2. Add VM public IP to Azure PostgreSQL firewall rules",
+      "3. Write db/m3_schema.sql (M3 operational DB — 12 tables including m3_intervention_log)",
+      "4. Write db/m3_m2_feed_tables.sql (4 feed tables for M2 RDS with session_mode, day_of_week INT, session_start_hour INT, session_number)",
+      "5. Run both DDL files — m3_schema.sql on Azure PostgreSQL, m3_m2_feed_tables.sql on M2 RDS",
+      "6. Phase 1 finish — run m3_feedback_tables.sql against live M2 RDS and create m3_app_user role"
+    ],
+    "phase_2_next": "Create polynovea-module3 GitHub repo. Set up M3 FastAPI skeleton on Azure VM (main.py, database.py with dual pool to Azure PG + M2 RDS, prompts.py, models.py). Run as systemd service on port 8001.",
+    "m2_schema_now_confirmed": {
+      "venue_demographic_scores": "No source column. One row per (venue_id, segment_id). alignment_score is final blended score. segment_id matches survey segments.",
+      "venue_fitness_dimensions": "Has source column. Always query WHERE source = 'blended' for Layer A context.",
+      "primitives_scores": "Has source column. Query top 15 by score for most relevant behavioral signals.",
+      "venue_similarity_deltas": "Has venue_id FK. Lower priority for M3 initial prompts.",
+      "fitness_delta_rules": "Lookup table, no venue_id. Preload at startup for delta label generation.",
+      "drift_signals": "Has source column (google, google_reviews, magicpin_upper). Available but low priority for M3 prompts.",
+      "raw_venue_data": "JSONB payload — mechanisms and raw signals. Low priority for initial integration."
+    },
+    "fetch_m2_venue_context_ready": "The 5-query pattern for assembling Layer A is now fully defined in topic_6_m2_schema_confirmation.fetch_m2_venue_context_query_map. Use it when building Phase 6 prompts.py.",
+    "key_architectural_rules": [
+      "All venue IDs originate from M2 RDS venues table — M3 never generates its own",
+      "M3 backend runs on Azure VM (polynovea-m3-api, Central India, port 8001) — NOT on M2's EC2",
+      "M3 DB is Azure PostgreSQL (polynovea-m3.postgres.database.azure.com) — NOT Supabase",
+      "M3 backend has two DB connections: get_m3_pool() (Azure PG full) and get_m2_pool() (M2 RDS read + write to m3_* tables only)",
+      "M3 feed tables carry session_mode (observation_only/engineering_active/post_intervention) at ROW level — not session level",
+      "M3 feed tables use day_of_week INT (1-7 ISO) and session_start_hour INT (0-23) for Bayesian coverage weighting",
+      "session_number on all M3 feed tables must match m3_venue_behavioral_outcomes.session_number exactly",
+      "No override logic — M3 is a third Bayesian evidence layer, M2 blends all three",
+      "M3 AI research layer is music psychology / neuropsychology / environmental psychology — completely different from M2",
+      "Dashboard is React + Vite + TypeScript + Zustand (Antigravity migrating from index.html)",
+      "Dashboard and Show Engineering are separate Vercel deployments from one polynovea-module3 repo",
+      "Supabase stores only AI debate trees — not operational data",
+      "Antigravity handles all frontend/visual work — Claude handles architecture, backend, DB schema",
+      "venue_fitness_dimensions: always query source='blended' for AI context",
+      "venue_demographic_scores: no source column, one row per (venue_id, segment_id), always final score"
+    ],
+    "azure_credentials_note": "M3 Azure PostgreSQL admin: subrojitroy. Credentials stored in backend/.env. Change password after session (was shared in chat).",
+    "segmentation_validation_note": "M2 segment alignment scores (e.g. Working Women 68%) are behavioral hypotheses inferred from review text — not validated demographic facts. Module 3's QR survey system (Phase 8) is what turns them into real measurements. The m3_segment_validation_feedback table (now DDL-complete) is the mechanism that closes the loop.",
+    "phase_order_rationale": "P1 RDS execution → DDL (m3_schema.sql + m3_m2_feed_tables.sql) → Phase 2 repo + skeleton → Phase 3 venue loader → Phase 5 research layer → Phase 6 AI system → Phase 7 KPI router → Phase 8 validation → Phase 9 dashboard wiring → Phase 10 show engineering → Phase 11 deployment.",
+    "master_todo_reference": "D:\\PolyNovea\\PolyNovea\\Docx\\Company Docx\\Module 3 - Optimisation\\docs\\m3_todo.md"
+  },
+
+  "session_2026_05_29_part2": {
+
+    "topic_11_db_schema_applied": {
+      "status": "COMPLETE",
+      "what": "M3 operational database fully created and schema applied on Azure PostgreSQL.",
+      "database_created": "polynovea_m3 (separate from default 'postgres' db)",
+      "tables_created": [
+        "m3_venues", "m3_behavioral_states", "m3_kpi_families", "m3_kpi_signals",
+        "m3_interventions", "m3_sessions", "m3_kpi_assessments", "m3_kpi_signal_readings",
+        "m3_intervention_log", "m3_session_states", "m3_se_suggestions", "m3_se_triggers",
+        "m3_se_feedback", "m3_customer_survey_responses", "m3_segment_validation_log"
+      ],
+      "files": {
+        "schema": "backend/db/m3_schema.sql",
+        "feed_tables": "backend/db/m3_m2_feed_tables.sql",
+        "runner_scripts": ["backend/db/create_db.py", "backend/db/run_schema.py"]
+      },
+      "env_updated": "M3_DB_NAME changed from 'postgres' to 'polynovea_m3'. M3_DATABASE_URL updated.",
+      "note_generated_columns": "EXTRACT() on TIMESTAMPTZ is not immutable in PG18 — cannot use in GENERATED ALWAYS AS. day_of_week and session_start_hour are regular INT columns set by application at INSERT."
+    },
+
+    "topic_12_m2_rds_ddl_blocked": {
+      "status": "PENDING — script ready, blocked on network access",
+      "what": "Attempted to run m3_feedback_tables.sql + m3_m2_feed_tables.sql + create m3_app_user on M2 RDS.",
+      "blocker": "Dev machine IP is not in M2 RDS AWS security group. Connection timed out.",
+      "resolution_options": [
+        "Option A: Add dev machine public IP to M2 RDS inbound rules in AWS console (Security Groups)",
+        "Option B: SSH into M2 EC2 (43.205.229.130) and run script from there — EC2 is already whitelisted"
+      ],
+      "script_ready": "backend/db/run_m2_rds.py — runs all 3 DDL files + creates m3_app_user in one shot",
+      "m3_app_user_password": "M3app_PNv2026! — already saved in backend/.env under M2_DB_PASSWORD",
+      "tables_to_create_on_m2_rds": [
+        "m3_segment_validation_feedback (from m3_feedback_tables.sql — already written)",
+        "m3_venue_behavioral_outcomes (from m3_feedback_tables.sql — already written)",
+        "m3_kpi_observations (from m3_m2_feed_tables.sql)",
+        "m3_dwell_observations (from m3_m2_feed_tables.sql)",
+        "m3_segment_table_log (from m3_m2_feed_tables.sql)"
+      ]
+    },
+
+    "topic_13_fastapi_skeleton": {
+      "status": "COMPLETE — all files written, syntax clean, deps installed",
+      "files_created": [
+        "backend/main.py — FastAPI app, CORS, lifespan, router registration",
+        "backend/database.py — dual pool (Azure PG get_m3_pool + M2 RDS get_m2_pool), fetch_m2_venue_context() 5-query pattern",
+        "backend/models.py — all Pydantic request/response models",
+        "backend/routers/__init__.py",
+        "backend/routers/kpi.py — session start/end, KPI assessments, intervention tracking, environment log",
+        "backend/routers/session_brief.py — brief endpoint, M2 context + M3 history assembly, Council TODO placeholder",
+        "backend/routers/show.py — show brief, history, outcome logging to M2 RDS",
+        "backend/requirements.txt"
+      ],
+      "council_status": "TODO placeholders in session_brief.py and show.py — Council not yet wired. Both routers return placeholder text until Phase 6.",
+      "m2_pool_graceful": "get_m2_pool() returns None if M2_DATABASE_URL not set — all routers handle this gracefully so dev works without M2 connection.",
+      "endpoints": {
+        "POST /api/kpi/session/start": "Creates session, returns session_id",
+        "POST /api/kpi/session/{id}/end": "Closes session",
+        "GET  /api/kpi/session/{id}": "Returns session state",
+        "POST /api/kpi/session/{id}/assessment": "KPI RAG assessment + signal readings",
+        "POST /api/kpi/session/{id}/intervention/start": "Log intervention start",
+        "POST /api/kpi/session/{id}/intervention/end": "Log intervention end",
+        "POST /api/kpi/session/{id}/environment": "Environment tab snapshot",
+        "POST /api/session/brief": "AI session brief (pre/mid/post)",
+        "POST /api/show/brief": "Show engineering brief",
+        "GET  /api/show/history/{venue_id}": "Prior show history",
+        "POST /api/show/outcome": "Log session outcome to M2 RDS",
+        "GET  /health": "Health check"
+      }
+    },
+
+    "topic_14_azure_vm_confirmed": {
+      "status": "COMPLETE",
+      "vm_name": "polynovea-m3-api",
+      "public_ip": "20.219.216.138",
+      "private_ip": "10.1.1.4",
+      "region": "Central India",
+      "os": "Ubuntu 22.04 LTS",
+      "size": "Standard B2ats v2 (2 vCPU, 1 GiB RAM)",
+      "ssh_key": "keys/polynovea-m3-key.pem",
+      "firewall_rule_added": "20.219.216.138 added to Azure PostgreSQL Networking — rule name: polynovea-m3-api",
+      "gitignore_created": "keys/ and .env excluded from git"
+    },
+
+    "topic_15_dashboard_visual_check": {
+      "status": "COMPLETE — all screens verified",
+      "method": "Live preview via Claude Preview tool, full walkthrough",
+      "build_result": "Clean build — 0 TypeScript errors, 66 modules, 242KB JS bundle",
+      "screens_verified": {
+        "setup": "Venue input, table stepper, mode/interval segmented controls, recall hint, Open Session button all working",
+        "door_and_flow": "Counters, 15-min countdown, submit interval, interval history rendering correctly",
+        "tables": "T1/T2/T3 grid, empty state, occupied count in header",
+        "environment": "All 4 segmented controls (Sound/Temp/Energy/Queue), Complaints section, Save button",
+        "kpi_monitor": "Zone tabs (ENTRANCE/QUEUE/MAIN BAR/DANCEFLOOR), KPI cards in UNLOGGED/dashed state, MANUAL/AUTO/SENSOR signal badges, bottom summary strip"
+      },
+      "issues_flagged_for_antigravity": [
+        "Zone tab status dots — currently all grey regardless of KPI state. Should colour green/amber/red by worst-case signal in zone. This is the pending D-2 item.",
+        "Header operator name/avatar not visible at narrow viewport — may be intentionally hidden on mobile, confirm with Antigravity"
+      ]
+    },
+
+    "topic_16_product_design_se_layer": {
+      "status": "DECIDED — architectural decision locked",
+      "date": "2026-05-29",
+
+      "what_was_discussed": "How KPI readings actually drive show engineering suggestions. The question of what a live performer can realistically control, and what the suggestions need to look like to be actionable.",
+
+      "controllable_variables": {
+        "music": "BPM, genre, familiarity, energy arc, key, harmonic structure, drop timing, silence",
+        "volume": "Overall SPL, bass emphasis, frequency balance",
+        "lighting": "Intensity, colour, movement speed, strobe, spotlight, darkness",
+        "staff": "Positioning, movement speed, energy, table service pace, verbal engagement",
+        "zone_layout": "Opening/closing areas, directing crowd flow, table clearing",
+        "temperature": "AC, heating — affects dwell and movement energy",
+        "verbal_mc": "Callouts, crowd direction, announcements"
+      },
+
+      "suggestion_format_decided": {
+        "format": "5-part: State → Mechanism → Lever → Action → Signal",
+        "state": "What the room is doing right now",
+        "mechanism": "Why it is doing that (behavioral science)",
+        "lever": "Which controllable variable to use",
+        "action": "The specific instruction",
+        "signal": "What to watch for to know it worked",
+        "example": "State: first-mover inhibition. Mechanism: social risk threshold too high. Lever: music familiarity. Action: queue 2-3 known tracks in minor key at 124-126 BPM, let 8-bar phrase run. Signal: first 2-3 people step onto floor — hold steady, social contagion takes over."
+      },
+
+      "missing_layer_identified": {
+        "name": "Neuroacoustic prescription layer",
+        "what": "The bridge between 'what the room needs behaviourally' and 'what the performer actually plays'. Maps behavioral state to specific music parameters: BPM range, chord structure, mode, frequency emphasis.",
+        "why_needed": "Without this, the Council gives vague suggestions. With it, suggestions are specific: 'minor key, 124-126 BPM, i-VII-VI-VII, sub-bass emphasis'.",
+        "gap_in_existing_research": "Current 24 research files cover behavioral mechanisms at macro level (crowd dynamics, social contagion, dwell) but do NOT have: BPM-to-brainwave correlation tables, harmonic psychology (chord structures), frequency prescription by crowd state, transition mechanics, Indian cultural context."
+      },
+
+      "architecture_with_new_layer": {
+        "flow": "KPI readings → State inference layer → Neuroacoustic prescription layer → Practical suggestion → Operator acts → KPI readings change",
+        "state_inference": "Looks at RAG pattern across KPI families and maps to one of 20 canonical behavioral states. NOT YET BUILT.",
+        "neuroacoustic_layer": "Maps behavioral state to specific music parameters from research corpus. NOT YET BUILT.",
+        "council": "Receives: current state + neuroacoustic prescription + M2 venue profile + session history. Outputs: 5-part suggestion. NOT YET WIRED."
+      }
+    },
+
+    "topic_17_se_research_prompts": {
+      "status": "COMPLETE — 16 prompts written",
+      "file": "backend/research/prompts/se_research_prompts.md",
+      "total_prompts": 16,
+      "priority_breakdown": {
+        "must_have": [
+          "Prompt 1 — BPM, Neural Entrainment and Behavioral State Mapping",
+          "Prompt 2 — Harmonic Psychology: Chord Structures, Modes and Emotional-Behavioral Response",
+          "Prompt 3 — Frequency Psychology: Bass, Mid, High and Physical Behavioral Response",
+          "Prompt 4 — Musical Transition Architecture",
+          "Prompt 5 — Groove, Syncopation and the Neurological Urge to Move"
+        ],
+        "high_value": [
+          "Prompt 6 — Lighting Psychology",
+          "Prompt 7 — Crowd Synchrony and Social Contagion",
+          "Prompt 8 — Temporal Dynamics: Full Night Arc and Session Pacing",
+          "Prompt 9 — Indian Cultural Context: Music Psychology for Indian Venues",
+          "Prompt 10 — Novelty vs Familiarity",
+          "Prompt 11 — Volume, SPL Management and Disinhibition Effect",
+          "Prompt 12 — Staff Choreography as a Behavioral Engineering Tool"
+        ],
+        "good_to_have": [
+          "Prompt 13 — Temperature, Air Quality and Physical Comfort",
+          "Prompt 14 — Alcohol, Pharmacology and Music Interaction",
+          "Prompt 15 — Peak-End Rule and Emotional Memory in Live Performance",
+          "Prompt 16 — Silence, Space and Dynamic Contrast"
+        ]
+      },
+      "next_step": "Run each prompt through a deep research tool (Perplexity Deep Research or Claude extended thinking + web). Save outputs as .md files in backend/research/. Re-run extraction pipeline — will add ~400-500 new entities (interventions, states, KPI mappings).",
+      "indian_context_note": "Prompt 9 (Indian Cultural Context) is especially important — Western research does not fully apply to Indian nightlife crowds. Run with specific Indian venue context."
+    }
+  },
+
+  "session_2026_05_29_part3": {
+
+    "topic_18_se_research_partial_run": {
+      "status": "PARTIAL — 3 of 5 Must Have prompts completed. Prompts 1 and 5 killed before completion.",
+      "date": "2026-05-29",
+      "what_happened": "Research prompts 1-5 were mistakenly run as Claude background agents instead of through Perplexity/Kimi/ChatGPT. This consumed ~5% of weekly Claude usage unnecessarily. Agents were stopped when the error was caught.",
+      "lesson_recorded": "SE research prompts (backend/research/prompts/se_research_prompts.md) are designed for Perplexity Deep Research or equivalent. Never run them as Claude agents. Rule saved to user memory file.",
+      "files_created": [
+        {
+          "file": "backend/research/harmonic_psychology_chord_behavioral_response.md",
+          "prompt": "Prompt 2 — Harmonic Psychology: Chord Structures, Modes and Emotional-Behavioral Response",
+          "status": "COMPLETE — ~620 lines",
+          "contents": "5 operational tables (chord progression map, modal character, harmonic rhythm, tension-resolution arcs, transition harmonic paths) + 5 prose sections including infrasound/key resonance section and integration matrix"
+        },
+        {
+          "file": "backend/research/frequency_psychology_behavioral_prescriptions.md",
+          "prompt": "Prompt 3 — Frequency Psychology",
+          "status": "COMPLETE — ~750 lines",
+          "contents": "5 tables (frequency band map, SPL behavioural effects, EQ move prescriptions, crowd state frequency matrix, hearing risk thresholds) + 6 prose sections. Cross-referenced frequency_claims_validity_review.md with contested claims flagged inline."
+        },
+        {
+          "file": "backend/research/musical_transition_architecture.md",
+          "prompt": "Prompt 4 — Musical Transition Architecture",
+          "status": "COMPLETE — full",
+          "contents": "7 crowd states defined, 6 tables (state-to-state map with 14 transitions, risk matrix, recovery playbook, 3-hour and 5-hour arc templates, W-curve design, Indian venue genre transition guide with 10 transitions) + 6 prose sections"
+        }
+      ],
+      "files_not_created": [
+        {
+          "prompt": "Prompt 1 — BPM, Neural Entrainment and Behavioral State Mapping",
+          "status": "KILLED — no file written",
+          "action": "Run through Perplexity Deep Research"
+        },
+        {
+          "prompt": "Prompt 5 — Groove, Syncopation and the Neurological Urge to Move",
+          "status": "KILLED — no file written",
+          "action": "Run through Perplexity Deep Research"
+        }
+      ],
+      "remaining_prompts": "Prompts 1, 5 (Must Have) + Prompts 6-16 (High Value + Good to Have) — all must be run through Perplexity/Kimi/ChatGPT, NOT Claude agents"
+    },
+
+    "topic_19_zone_dots_fix": {
+      "status": "COMPLETE — Antigravity verified",
+      "date": "2026-05-29",
+      "problem": "Zone tab status dots in Monitor view were always grey. getCalculatedZoneHealth() only computed alert/watch status when isKpiCardLogged() was true for a family. Auto-derived signals (sound level, flow counts, complaint count, table occupancy) never surfaced in dot colour until the operator manually clicked Update + Save on a KPI card.",
+      "fix": "Removed isKpiCardLogged gate from the worst-case computation. Auto-derived signals now always feed into zone dot colour regardless of logging state. The isKpiCardLogged flag is only used to distinguish green (assessed) from grey (not yet assessed).",
+      "behaviour_after_fix": {
+        "grey": "No session data / no issues detected — unassessed",
+        "amber": "Auto-signal or manual signal shows watch — surfaces immediately without requiring assessment",
+        "red": "Auto-signal or manual signal shows alert — surfaces immediately",
+        "green": "All signals ok AND operator has assessed at least one KPI card in this zone"
+      },
+      "files_changed": [
+        {
+          "file": "dashboard/src/hooks/useKPIState.ts",
+          "change": "getCalculatedZoneHealth() — removed isLogged gate from alert/watch computation, removed allLogged variable, comments updated"
+        },
+        {
+          "file": "dashboard/src/store/sessionStore.ts",
+          "change": "endSession() now resets showQuickEnvCheck: false to prevent stale flag on next session"
+        },
+        {
+          "file": "dashboard/src/components/shared/Header/Header.tsx",
+          "change": "Removed 15-line comment block (leftover dev reasoning notes) inside handleSubmitInterval, replaced with single clean comment"
+        }
+      ],
+      "antigravity_involvement": "Fix was handed off to Antigravity via todo prompt. All 3 changes verified in files — Antigravity confirmed complete.",
+      "phase_update": "P9-2 item 'Zone tab status dots' now DONE"
+    },
+
+    "topic_20_usage_management_rule": {
+      "status": "RULE SAVED TO MEMORY",
+      "date": "2026-05-29",
+      "rule": "Before any long or complex task (research, multi-file implementation, agent spawning), ask Subrojit whether Codex or Antigravity is available for that task.",
+      "rationale": "Codex and Antigravity have separate usage pools. Claude's weekly usage is limited. Claude should be preserved for architecture decisions, quick targeted fixes, and coordination. Heavy implementation and all research corpus work goes to Codex/Antigravity/Perplexity.",
+      "saved_to": "C:\\Users\\Roy\\.claude\\projects\\...\\memory\\user.md"
+    }
+  },
+
+  "session_2026_05_29_part4": {
+
+    "topic_21_council_evidence_architecture": {
+      "status": "DECIDED — not yet built",
+      "date": "2026-05-29",
+
+      "problem_with_current_approach": "The Council currently receives pre-assembled prompts with stripped structured entities (claims, mechanisms). It loses the actual theory wording — the precise mechanistic language that makes suggestions specific. A vague entity like {intervention: 'increase_familiarity', confidence: 0.82} is not the same as 'rhythmic auditory stimulation at 120–130 BPM entrains the supplementary motor area and basal ganglia circuits, producing involuntary urge to synchronize movement.' Specificity requires the raw wording.",
+
+      "architecture_decided": {
+        "name": "Two-Stage Evidence Sweep + Council Synthesis",
+        "overview": "Stage 1 runs two parallel evidence agents before the Council sees anything. Stage 2 is the Council receiving a pre-assembled evidence package rather than trying to retrieve knowledge and synthesize at the same time.",
+
+        "stage_1_parallel_evidence_sweep": {
+          "description": "Two agents run simultaneously against the same session state input",
+          "agent_1_pipeline_agent": {
+            "what": "Queries structured extraction pipeline outputs — m3_mechanisms.json, m3_states.json, m3_relationships.json, m3_interventions.json",
+            "returns": "Canonical state match for current session state, relevant mechanism chains, intervention candidates, KPI linkages",
+            "method": "JSON lookups + knowledge graph traversal (KAG)",
+            "speed": "Fast — no LLM call, pure data retrieval"
+          },
+          "agent_2_research_agent": {
+            "what": "Semantic search over raw .md research files — both existing 24 files and new SE research files",
+            "returns": "Actual theory passages most relevant to the current crowd state — verbatim wording from research corpus",
+            "method": "Vector embedding search (RAG) over research chunks",
+            "speed": "Moderate — vector similarity search + chunk retrieval"
+          }
+        },
+
+        "stage_2_council_synthesis": {
+          "description": "3 agents receive the assembled evidence package from Stage 1 and debate → synthesise",
+          "agent_3_round1": "Receives full evidence package (structured entities + theory passages). Proposes a 5-part suggestion.",
+          "agent_4_round2": "Challenges R1 proposal with alternative interpretation of evidence. Proposes alternative.",
+          "agent_5_synthesis": "Synthesises R1 and R2 into final 5-part suggestion: State → Mechanism → Lever → Action → Signal",
+          "key_difference_from_current": "Council goes from 'figure out what you know about this' to 'here is exactly what the research says — now suggest.' Fundamentally stronger position."
+        },
+
+        "evidence_package_structure": {
+          "session_state": "Current KPI RAG pattern across zones (from live session or historical)",
+          "venue_profile": "M2 behavioral intelligence (segments, primitives, fitness dims)",
+          "structured_evidence": "From Pipeline Agent — canonical state, mechanism chains, intervention candidates",
+          "theory_passages": "From Research Agent — verbatim research excerpts most semantically relevant to current state",
+          "session_history": "Prior interventions and outcomes at this venue (from M3 DB)"
+        }
+      },
+
+      "two_pipelines_architecture": {
+        "pipeline_1_existing": {
+          "name": "Behavioral Research Pipeline",
+          "files": "backend/research_pipeline/",
+          "inputs": "24 existing research .md files (crowd dynamics, social contagion, dwell, mechanisms)",
+          "entity_types": ["Mechanism", "State", "Claim", "Contradiction", "Relationship", "KPI", "Intervention", "TemporalDynamic"],
+          "knowledge_shape": "Mechanistic — WHY crowds behave certain ways",
+          "outputs": "m3_mechanisms.json, m3_states.json, m3_relationships.json, m3_interventions.json, rag_chunks.json (1318 chunks)",
+          "status": "COMPLETE — 24 files profiled, LLM extraction active"
+        },
+        "pipeline_2_new": {
+          "name": "Show Engineering Prescription Pipeline",
+          "files": "backend/se_pipeline/ (to be built)",
+          "inputs": "New SE research .md files from Perplexity runs (Prompts 1–16)",
+          "entity_types": ["Prescription", "Threshold", "ParameterMapping", "TransitionRule", "GrooveProfile", "CrowdStateArc"],
+          "knowledge_shape": "Prescriptive — WHAT TO DO given a crowd state (BPM ranges, chord structures, EQ moves, transition maps)",
+          "example_entity": "{state: 'first_mover_inhibition', bpm_range: '122-126', chord: 'i-VII-VI-VII', sub_bass: 'emphasise', signal: '2-3 people step on floor'}",
+          "architectures_implemented": ["RAG — vector embeddings for semantic retrieval by Research Agent", "KAG — graph structure of state→prescription→signal chains for Pipeline Agent traversal", "CAG — pre-cache full SE corpus into NVIDIA KV cache to eliminate retrieval latency on hot path"],
+          "outputs": "se_prescriptions.json, se_thresholds.json, se_transitions.json, se_rag_chunks.json + vector index",
+          "status": "NOT YET BUILT — blocked on SE research files from Perplexity"
+        },
+        "key_difference": "Pipeline 1 answers 'what is happening and why'. Pipeline 2 answers 'what specifically should the performer do about it, at this BPM, with this chord structure, watched for this signal'."
+      },
+
+      "six_agent_roles": {
+        "agent_1": "Behavioral KAG — queries structured pipeline outputs (m3_mechanisms.json, m3_states.json, m3_relationships.json). Returns canonical state match, mechanism chains, intervention candidates.",
+        "agent_2": "Behavioral RAG — semantic retrieval over raw behavioral research .md files (24 existing files). Returns verbatim theory passages on crowd dynamics, social contagion, dwell, emotional memory.",
+        "agent_3": "Neuroacoustic KAG — queries structured SE pipeline outputs (se_prescriptions.json, se_thresholds.json, se_transitions.json). Returns BPM range, chord structure, frequency prescription, transition path.",
+        "agent_4": "Neuroacoustic RAG — semantic retrieval over raw SE research .md files (Prompts 1–16 outputs). Returns verbatim neuroacoustic theory passages — the mechanistic why behind each prescription.",
+        "agent_5": "Integrator — receives findings from Agents 1–4 + M3 DB session history + M2 DB venue profile. Synthesises into one unified session picture: current state, behavioral mechanism, neuroacoustic prescription. No suggestion yet — coherence first.",
+        "agent_6": "Prescriber — receives Agent 5's integrated picture. Outputs the final 5-part suggestion: State → Mechanism → Lever → Action → Signal."
+      },
+
+      "model_assignment": {
+        "principle": "Depth at every stage. Speed is never an asset when retrieval quality determines suggestion quality. If Agents 1–4 retrieve wrong evidence, Agents 5–6 cannot fix it — they only work with what they are given.",
+        "key_1": {"agents": "1 & 2", "model": "Nemotron 70B", "corpus": "Behavioral psychology"},
+        "key_2": {"agents": "3 & 4", "model": "Nemotron 70B", "corpus": "Neuroacoustic SE"},
+        "key_3": {"agents": "5 & 6", "model": "Nemotron 70B + DeepSeek R1", "corpus": "Full evidence package + M3/M2 data"},
+        "parallelism_benefit": "3 keys across 3 cofounders allows Stage 1 (Agents 1–4) to run fully parallel on Keys 1 & 2 simultaneously — wall clock time = one agent, not four. Stage 2 fires on Key 3 after Stage 1 complete. Latency managed through parallelism, never through model degradation."
+      },
+
+      "infrastructure_required": {
+        "vector_store": "pgvector extension on Azure PostgreSQL (already provisioned) OR ChromaDB on Azure VM — stores embeddings for Research Agent semantic search",
+        "graph_structure": "JSON graph from pipeline outputs OR lightweight Neo4j if query complexity warrants it — used by Pipeline Agent for KAG traversal",
+        "kv_cache": "NVIDIA NIM API KV caching for CAG — pre-loads SE corpus at backend startup, eliminates retrieval on each Council call"
+      },
+
+      "build_sequencing": [
+        "Step 1: Finish Perplexity research runs (Prompts 1, 5, 6–16) — save to backend/research/",
+        "Step 2: Design SE pipeline schema — entity types, graph structure, vector index design (Claude)",
+        "Step 3: Build SE extraction pipeline — backend/se_pipeline/ (Codex)",
+        "Step 4: Build Pipeline Agent + Research Agent — Stage 1 evidence sweep (Codex)",
+        "Step 5: Update Council to receive evidence package instead of raw prompt (Claude + Codex)",
+        "Step 6: Wire to /api/session/brief and /api/show/brief endpoints (already have TODO placeholders)"
+      ],
+
+      "what_does_not_change": [
+        "Council model pattern — still Nemotron + DeepSeek + Mistral, 3-round debate, same synthesis",
+        "5-part suggestion format — State → Mechanism → Lever → Action → Signal",
+        "M2 behavioral intelligence layer — still fetched via get_m2_pool() as before",
+        "Session state input — same KPI RAG readings from M3 DB"
+      ],
+
+      "next_discussion_items": [
+        "API design for the evidence sweep agents — how session state is encoded as query input",
+        "Agent orchestration — how Stage 1 agents are called (parallel async), how evidence package is assembled, how Council receives it",
+        "Vector store choice — pgvector (already on Azure PG) vs ChromaDB (simpler to set up)"
+      ]
+    }
+  },
+
+  "context_for_next_session_updated": {
+    "phases_complete": [
+      "Phase 0 — M2 cleanup DONE",
+      "Phase 1 — DDL written DONE (m3_feedback_tables.sql + m3_m2_feed_tables.sql written, NOT YET RUN on M2 RDS)",
+      "Folder reorganisation — DONE",
+      "Research pipeline (original 24 files) — DONE",
+      "Azure infrastructure — DONE (PostgreSQL polynovea_m3 + VM polynovea-m3-api both live)",
+      "M3 schema — DONE (15 tables applied to Azure PostgreSQL polynovea_m3)",
+      "Phase 2 FastAPI skeleton — DONE (main.py, database.py, models.py, 3 routers, requirements.txt)",
+      "Dashboard visual check — DONE (all screens verified, 0 build errors)",
+      "SE research prompts — DONE (16 prompts written, ready to run)",
+      "Zone tab status dots fix — DONE (Antigravity verified)",
+      "SE research Prompts 2, 3, 4 — DONE (harmonic, frequency, transition files written to backend/research/)"
+    ],
+    "immediate_next_actions": [
+      "1. Run M2 RDS DDL — either whitelist dev IP in AWS security group OR SSH into M2 EC2 and run backend/db/run_m2_rds.py",
+      "2. Run SE research Prompts 1 and 5 (BPM + Groove — not yet done) through Perplexity Deep Research. Then run Prompts 6-16 as bandwidth allows. Save as .md files in backend/research/",
+      "3. Re-run extraction pipeline after new research files are added (3 new files already added this session)",
+      "4. Build state inference layer — maps KPI RAG patterns to canonical behavioral states",
+      "5. Deploy FastAPI to Azure VM — SSH with keys/polynovea-m3-key.pem, install deps, run as systemd on port 8001",
+      "6. Wire Council into session_brief.py and show.py (TODO placeholders already in place)",
+      "7. Zone tab status dots — DONE (completed this session)"
+    ],
+    "key_architectural_decisions_locked": [
+      "Suggestion format: State → Mechanism → Lever → Action → Signal (5-part)",
+      "Neuroacoustic layer is required before Council can give specific suggestions",
+      "State inference layer sits between KPI readings and AI brief request",
+      "M3 backend: Azure VM port 8001, M3 DB: Azure PostgreSQL polynovea_m3",
+      "M3 app user password: M3app_PNv2026! — stored in backend/.env",
+      "All venue IDs from M2 RDS — M3 never generates its own",
+      "m3_app_user: read all M2 tables + write only to m3_* tables",
+      "session_mode is ROW-level on feed tables (observation_only / engineering_active / post_intervention)",
+      "Council uses Two-Stage architecture: Stage 1 = parallel Pipeline Agent (KAG) + Research Agent (RAG), Stage 2 = 3-agent Council receiving assembled evidence package",
+      "Two extraction pipelines: Pipeline 1 (existing, mechanistic) + Pipeline 2 (new SE, prescriptive) — different entity schemas, both feed into Stage 1 agents",
+      "Vector store (pgvector or ChromaDB) required for Research Agent semantic retrieval",
+      "SE pipeline blocked on Perplexity research runs completing — do not build until research files exist"
+    ],
+    "key_files": {
+      "retro": "docs/session_retrospective_2026_05_28.json (this file)",
+      "todo": "docs/m3_todo.md",
+      "se_research_prompts": "backend/research/prompts/se_research_prompts.md",
+      "m3_schema": "backend/db/m3_schema.sql",
+      "m2_rds_runner": "backend/db/run_m2_rds.py",
+      "fastapi_main": "backend/main.py",
+      "database_pools": "backend/database.py",
+      "env": "backend/.env",
+      "ssh_key": "keys/polynovea-m3-key.pem",
+      "dashboard_src": "dashboard/src/"
+    },
+    "azure": {
+      "postgresql": "polynovea-m3.postgres.database.azure.com — database: polynovea_m3 — admin: subrojitroy",
+      "vm": "polynovea-m3-api — IP: 20.219.216.138 — Ubuntu 22.04 — SSH user: subrojitroy — key: keys/polynovea-m3-key.pem"
+    }
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "MECH_DOPAMINE_REWARD_ANTICIPATION": {
+    "label": "Dopamine Reward Anticipation",
+    "aliases": ["reward anticipation", "anticipatory dopamine", "anticipation curve", "dopaminergic anticipation"]
+  },
+  "MECH_PREDICTION_ERROR": {
+    "label": "Prediction Error",
+    "aliases": ["reward prediction error", "belief-state td", "temporal difference signal", "precision-weighted prediction error"]
+  },
+  "MECH_NEURAL_ENTRAINMENT": {
+    "label": "Neural Entrainment",
+    "aliases": ["rhythmic entrainment", "beat entrainment", "oscillatory entrainment", "phase locking"]
+  },
+  "MECH_SYNCHRONIZATION": {
+    "label": "Synchronization",
+    "aliases": ["physiological synchrony", "interbrain synchrony", "crowd synchronization", "collective synchrony"]
+  },
+  "MECH_EMOTIONAL_CONTAGION": {
+    "label": "Emotional Contagion",
+    "aliases": ["affective contagion", "mimicry-feedback loop", "collective emotional waves", "emotion contagion"]
+  },
+  "MECH_AROUSAL_REGULATION": {
+    "label": "Arousal Regulation",
+    "aliases": ["arousal control", "autonomic regulation", "allostatic regulation", "arousal pacing"]
+  },
+  "MECH_HABITUATION": {
+    "label": "Habituation",
+    "aliases": ["diminishing returns", "flattening response", "stimulus adaptation", "repeated stimulation fatigue", "novelty decay"]
+  },
+  "MECH_NOVELTY_PROCESSING": {
+    "label": "Novelty Processing",
+    "aliases": ["novelty detection", "contextual novelty", "dishabituation", "novelty response"]
+  },
+  "MECH_SENSORY_FATIGUE_OVERSTIMULATION": {
+    "label": "Sensory Fatigue and Overstimulation",
+    "aliases": ["sensory overload", "overstimulation", "sensory fatigue", "allostatic overload"]
+  },
+  "MECH_MEMORY_CONSOLIDATION": {
+    "label": "Memory Consolidation",
+    "aliases": ["contextual reinstatement", "memory tagging", "peak-end memory", "emotional memory consolidation"]
+  },
+  "MECH_MUSIC_INDUCED_CHILLS": {
+    "label": "Music-Induced Chills",
+    "aliases": ["frisson", "chills", "peak chill response", "dopamine chill moment"]
+  },
+  "MECH_SOCIAL_SYNCHRONIZATION": {
+    "label": "Social Synchronization",
+    "aliases": ["social synchrony", "audience-performer coupling", "movement phase-locking", "interactive synchrony"]
+  },
+  "MECH_COLLECTIVE_EMOTIONAL_AMPLIFICATION": {
+    "label": "Collective Emotional Amplification",
+    "aliases": ["emotional amplification", "crowd-emotion amplification", "collective amplification", "group emotional cascade"]
+  },
+  "MECH_SOCIAL_PROOF": {
+    "label": "Social Proof",
+    "aliases": ["crowd imitation", "observed popularity cue", "peer validation", "collective endorsement"]
+  },
+  "MECH_ATTENTION_SYNC": {
+    "label": "Attention Synchronization",
+    "aliases": ["attention coherence", "shared focused attention", "attention lock", "collective focus"]
+  },
+  "MECH_FATIGUE_RECOVERY": {
+    "label": "Fatigue Recovery Loop",
+    "aliases": ["recovery window", "stimulation reset", "fatigue rebound", "restoration phase"]
+  }
+}

@@ -1,0 +1,65 @@
+.monitorTabs {
+  display: flex;
+  background: rgba(18, 18, 18, 0.6);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.monitorTabs::-webkit-scrollbar {
+  display: none;
+}
+
+.mtab {
+  background: transparent;
+  border: none;
+  color: var(--text-disabled);
+  padding: 15px 20px;
+  font-weight: 700;
+  font-size: 11px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mtab:hover {
+  color: var(--text-secondary);
+}
+
+.mtab.active {
+  color: var(--gold);
+  border-bottom-color: var(--gold);
+}
+
+.mtabPip {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  transition: all 0.2s;
+}
+
+.ok {
+  background: var(--ok);
+  box-shadow: 0 0 6px var(--ok);
+}
+
+.watch {
+  background: var(--watch);
+  box-shadow: 0 0 6px var(--watch);
+}
+
+.alert {
+  background: var(--alert);
+  box-shadow: 0 0 6px var(--alert);
+}
+
+.none {
+  background: var(--stale);
+}
