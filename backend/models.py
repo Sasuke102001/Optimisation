@@ -116,3 +116,29 @@ class ShowOutcomeRequest(BaseModel):
         default="OPERATOR_LOGGED",
         pattern="^(SURVEY_VALIDATED|OPERATOR_LOGGED|INFERRED)$",
     )
+
+
+# ─── Council Evidence Package ─────────────────────────────────────────────────
+
+class StructuredEvidence(BaseModel):
+    canonical_state: str                    # e.g. "first_mover_inhibition"
+    mechanism_chains: list[dict]            # from m3_mechanisms.json traversal
+    intervention_candidates: list[dict]     # from m3_interventions.json lookup
+    kpi_linkages: list[str]                 # which KPI families are implicated
+
+
+class NeuroacousticPrescription(BaseModel):
+    bpm_range: str | None = None            # e.g. "122–126"
+    chord_structure: str | None = None      # e.g. "i-VII-VI-VII"
+    frequency_emphasis: str | None = None   # e.g. "sub-bass"
+    transition_path: str | None = None      # e.g. "ambient_build → dancefloor_prime"
+    raw_passages: list[str] = []            # verbatim prescription text from SE research
+
+
+class EvidencePackage(BaseModel):
+    session_state: dict
+    venue_profile: dict
+    structured_evidence: StructuredEvidence | None = None
+    theory_passages: list[str] = []
+    neuroacoustic_prescription: NeuroacousticPrescription | None = None
+    session_history: list[dict] = []

@@ -1,66 +1,50 @@
 """
 POST /api/session/brief
-Generates a pre/mid/post-session AI brief using M2 behavioral context + M3 session history.
-Council mode streams R1 → R2 → synthesis. Fast mode returns a single response.
+Generates a pre/mid/post-session AI brief using the M3 Council.
+
+Stage 1 (evidence assembly) — builds EvidencePackage from:
+  - M2 venue behavioral context (venue profile, fitness, segments, primitives)
+  - M3 session history (prior closed sessions for this venue)
+  - Live state from POST body (KPI readings, if mid-session)
+  Agents 1–4 will be inserted here when se_pipeline is built (Steps 3–4).
+
+Stage 2 (Council) — debate + synthesis:
+  - run_council(package) → streams R1→R2→synthesis
+  - run_council_fast(package) → single Nemotron call, returns string
 """
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import StreamingResponse
 
 from database import fetch_m2_venue_context, get_m3_pool
-from models import SessionBriefRequest, SessionBriefResponse
+from models import (
+    EvidencePackage,
+    SessionBriefRequest,
+    SessionBriefResponse,
+)
+from routers.council import run_council, run_council_fast
 
 router = APIRouter()
 
 
-def _build_brief_prompt(
+async def _assemble_evidence_package(
     body: SessionBriefRequest,
     m2_context: dict,
     m3_history: list[dict],
-) -> str:
-    venue = m2_context.get("venue", {})
-    fitness = m2_context.get("fitness", {})
-    segments = m2_context.get("segments", [])
-    primitives = m2_context.get("primitives", [])
-
-    seg_lines = "\n".join(
-        f"  - {s['segment_id']}: {round(s['alignment_score'] * 100)}% alignment"
-        for s in segments[:3]
+) -> EvidencePackage:
+    """
+    Stage 1 evidence sweep.
+    Agents 1–4 will be inserted here when se_pipeline is built (Steps 3–4).
+    For now: builds package from available data (venue profile + session history).
+    """
+    return EvidencePackage(
+        session_state=body.live_state or {},
+        venue_profile=m2_context,
+        structured_evidence=None,    # TODO Step 3: Pipeline Agent fills this
+        theory_passages=[],          # TODO Step 4: Research Agent fills this
+        neuroacoustic_prescription=None,  # TODO Step 4: Neuroacoustic Agents fill this
+        session_history=m3_history,
     )
-    prim_line = ", ".join(p["primitive_id"] for p in primitives[:10])
-    history_note = (
-        f"Prior sessions at this venue: {len(m3_history)}. "
-        f"Most recent: {m3_history[0].get('opened_at', 'unknown') if m3_history else 'none'}"
-        if m3_history else "No prior M3 session history for this venue."
-    )
-
-    return f"""
-=== SESSION BRIEF REQUEST ===
-Venue: {venue.get('name', f'ID {body.venue_id}')} — {venue.get('area', '')}, {venue.get('city', '')}
-Mode: {body.session_mode} | Session #{body.session_number}
-
-=== LAYER A — M2 BEHAVIORAL PROFILE ===
-Top segments:
-{seg_lines if seg_lines else '  Not available'}
-
-Fitness dimensions:
-  Social dwell: {fitness.get('fitness_for_social_dwell', 'N/A')}
-  Group energy: {fitness.get('fitness_for_group_energy', 'N/A')}
-  Repeat habit: {fitness.get('fitness_for_repeat_habit', 'N/A')}
-  Operational quality: {fitness.get('operational_quality', 'N/A')}
-  Retention strength: {fitness.get('retention_strength', 'N/A')}
-
-Top behavioral primitives: {prim_line if prim_line else 'Not available'}
-
-=== LAYER B — M3 SESSION HISTORY ===
-{history_note}
-
-=== LIVE STATE ===
-{str(body.live_state) if body.live_state else 'No live state provided (pre-session).'}
-
-Generate a concise, actionable {body.session_mode.replace('_', ' ')} brief for the show engineer.
-""".strip()
 
 
 @router.post("/brief", response_model=SessionBriefResponse)
@@ -77,24 +61,22 @@ async def generate_session_brief(body: SessionBriefRequest):
             SELECT id, session_number, session_mode, opened_at, closed_at
             FROM m3_sessions
             WHERE venue_id = $1 AND closed_at IS NOT NULL
-            ORDER BY opened_at DESC
-            LIMIT 10
+            ORDER BY opened_at DESC LIMIT 10
             """,
             body.venue_id,
         )
     m3_history = [dict(r) for r in history]
 
-    prompt = _build_brief_prompt(body, m2_context, m3_history)
+    package = await _assemble_evidence_package(body, m2_context, m3_history)
 
-    # TODO: wire Council here (Phase 6).
-    # Placeholder response until council.py is built.
-    brief_text = (
-        f"[Brief placeholder — Council not yet wired]\n\n"
-        f"Prompt assembled for venue {body.venue_id}, session #{body.session_number}, "
-        f"mode: {body.session_mode}.\n"
-        f"M2 context: {'available' if m2_context else 'not available'}. "
-        f"Prior sessions: {len(m3_history)}."
-    )
+    if body.mode == "fast":
+        brief_text = await run_council_fast(package)
+    else:
+        # Council streams — collect for non-streaming response
+        chunks: list[str] = []
+        async for chunk in run_council(package):
+            chunks.append(chunk)
+        brief_text = "".join(chunks)
 
     return SessionBriefResponse(
         brief=brief_text,

@@ -8,9 +8,29 @@ from datetime import date, datetime, timezone
 from fastapi import APIRouter, HTTPException
 
 from database import fetch_m2_venue_context, get_m3_pool
-from models import ShowBriefRequest, ShowBriefResponse, ShowOutcomeRequest
+from models import EvidencePackage, ShowBriefRequest, ShowBriefResponse, ShowOutcomeRequest
+from routers.council import run_council, run_council_fast
 
 router = APIRouter()
+
+
+async def _assemble_show_evidence(
+    body: ShowBriefRequest,
+    m2_context: dict,
+    prior_shows: list[dict],
+) -> EvidencePackage:
+    """
+    Stage 1 evidence sweep for show brief.
+    Agents 1–4 will be inserted here when se_pipeline is built (Steps 3–4).
+    """
+    return EvidencePackage(
+        session_state=body.live_state or {},
+        venue_profile=m2_context,
+        structured_evidence=None,         # TODO Step 3: Pipeline Agent fills this
+        theory_passages=[],               # TODO Step 4: Research Agent fills this
+        neuroacoustic_prescription=None,  # TODO Step 4: Neuroacoustic Agents fill this
+        session_history=prior_shows,
+    )
 
 
 @router.post("/brief", response_model=ShowBriefResponse)
@@ -19,6 +39,7 @@ async def generate_show_brief(body: ShowBriefRequest):
 
     m2_context = await fetch_m2_venue_context(body.venue_id)
 
+    # Prior show sessions — includes mode and timestamps for session history
     async with pool.acquire() as conn:
         history = await conn.fetch(
             """
@@ -30,14 +51,17 @@ async def generate_show_brief(body: ShowBriefRequest):
             """,
             body.venue_id,
         )
+    prior_shows = [dict(r) for r in history]
 
-    # TODO: wire Council here (Phase 6).
-    brief_text = (
-        f"[Show brief placeholder — Council not yet wired]\n\n"
-        f"Venue {body.venue_id} | Session #{body.session_number}\n"
-        f"M2 context: {'available' if m2_context else 'not available'}. "
-        f"Prior sessions: {len(history)}."
-    )
+    package = await _assemble_show_evidence(body, m2_context, prior_shows)
+
+    if body.mode == "fast":
+        brief_text = await run_council_fast(package)
+    else:
+        chunks: list[str] = []
+        async for chunk in run_council(package):
+            chunks.append(chunk)
+        brief_text = "".join(chunks)
 
     return ShowBriefResponse(
         brief=brief_text,
