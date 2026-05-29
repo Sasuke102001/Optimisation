@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from database import close_pools, init_pools
-from routers import kpi, session_brief, show
+from routers import kpi, session_brief, show, venues
 
 ALLOWED_ORIGINS = [
     "http://localhost:5173",   # Vite dev server
@@ -37,6 +37,7 @@ app.add_middleware(
 app.include_router(kpi.router,           prefix="/api/kpi",     tags=["kpi"])
 app.include_router(session_brief.router, prefix="/api/session", tags=["session"])
 app.include_router(show.router,          prefix="/api/show",    tags=["show"])
+app.include_router(venues.router,        prefix="/api/venues",  tags=["venues"])
 
 
 @app.get("/health")

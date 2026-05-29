@@ -112,3 +112,23 @@ async def fetch_m2_venue_context(venue_id: int) -> dict:
         "segments":   [dict(r) for r in segments],
         "primitives": [dict(r) for r in primitives],
     }
+
+
+async def fetch_m2_venue_list() -> list[dict]:
+    """
+    Returns all active venues from M2 RDS for the venue search bar.
+    Returns empty list if M2 pool is not available.
+    """
+    pool = get_m2_pool()
+    if pool is None:
+        return []
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, name, area, city, types
+            FROM venues
+            WHERE city IN ('Mumbai', 'Navi Mumbai', 'Thane')
+            ORDER BY name ASC
+            """,
+        )
+    return [dict(r) for r in rows]
