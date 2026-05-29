@@ -1,0 +1,26 @@
+name: Deploy to Azure VM
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'backend/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          script: |
+            cd ~/app
+            git pull origin master
+            source venv/bin/activate
+            pip install -r backend/requirements.txt -q
+            sudo systemctl restart polynovea-m3
+            echo "Deploy complete — $(date)"
