@@ -123,21 +123,17 @@
   display: flex;
   gap: 10px;
   align-items: stretch;
+  overflow-x: auto;
+  padding-bottom: 4px; /* room for scrollbar when it appears */
 }
-
-/* Wrapper column holding a phase card + transition card side-by-side */
-.sp-phase-col {
-  display: flex;
-  flex: 1;
-  min-width: 180px;
-  gap: 10px;
-  align-items: stretch;
-}
+.sp-phase-row::-webkit-scrollbar { height: 4px; }
+.sp-phase-row::-webkit-scrollbar-track { background: transparent; }
+.sp-phase-row::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 4px; }
 
 /* ── Phase card v2 ── */
 .sp-phase-card-v2 {
   flex: 1;
-  min-width: 0;
+  min-width: 200px;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--r);

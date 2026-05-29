@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, Fragment } from 'react'
 import {
   useSEStore,
   buildPhases,
@@ -259,7 +259,7 @@ export function ShowPlan() {
             const transList = transKey ? (PHASE_TRANSITIONS[transKey] ?? []) : null
 
             return (
-              <div key={p.label} className="sp-phase-col">
+              <Fragment key={p.label}>
                 {/* Phase card */}
                 <div
                   className="sp-phase-card-v2"
@@ -341,7 +341,7 @@ export function ShowPlan() {
                     </ul>
                   </div>
                 )}
-              </div>
+              </Fragment>
             )
           })}
         </div>
