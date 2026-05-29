@@ -1,0 +1,146 @@
+/* ═══════════════════════════════════════════════════════════
+   GLOBALS — SE App (mirrors dashboard globals.css)
+   ═══════════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  background: radial-gradient(circle at 50% 0%, #17141d 0%, #0A0A0A 60%);
+  color: var(--text-primary);
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, .clash { font-family: 'Clash Display', sans-serif !important; }
+.space-grotesk { font-family: 'Space Grotesk', sans-serif; }
+
+/* ── Buttons ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 18px;
+  border-radius: var(--rs);
+  font-family: 'Inter', sans-serif;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  white-space: nowrap;
+}
+.btn:active { transform: scale(0.96); }
+.btn:disabled { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
+.btn-gold { background: var(--gold); color: #0A0A0A; box-shadow: var(--glow-gold); }
+.btn-gold:hover { background: #ebdcb2; transform: translateY(-1px); }
+.btn-ghost { background: transparent; color: var(--text-secondary); border: 1px solid var(--border); }
+.btn-ghost:hover { border-color: var(--gold-muted); color: var(--text-primary); background: rgba(255,255,255,0.03); }
+.btn-danger { background: rgba(239,68,68,0.15); color: var(--alert); border: 1px solid rgba(239,68,68,0.25); }
+.btn-danger:hover { background: rgba(239,68,68,0.25); }
+.btn-violet { background: var(--violet); color: #fff; }
+.btn-violet:hover { background: #6d28d9; transform: translateY(-1px); }
+
+/* ── Cards ── */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 16px 20px;
+}
+
+/* ── Badge ── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+.badge-ok     { background: var(--ok-bg);    color: var(--ok);    border-color: rgba(34,197,94,0.2); }
+.badge-watch  { background: var(--watch-bg); color: var(--watch); border-color: rgba(245,158,11,0.2); }
+.badge-alert  { background: var(--alert-bg); color: var(--alert); border-color: rgba(239,68,68,0.2); }
+.badge-stale  { background: var(--stale-bg); color: var(--stale); border-color: rgba(82,82,91,0.2); }
+
+/* ── Input / Select ── */
+.field-input, .field-select, .field-textarea {
+  width: 100%;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--rs);
+  color: var(--text-primary);
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  padding: 9px 12px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.field-input:focus, .field-select:focus, .field-textarea:focus {
+  border-color: var(--gold-muted);
+}
+.field-input::placeholder, .field-textarea::placeholder { color: var(--text-disabled); }
+.field-select { appearance: none; cursor: pointer; }
+.field-textarea { resize: vertical; min-height: 72px; }
+
+/* ── Segmented control ── */
+.seg-control {
+  display: inline-flex;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--rs);
+  padding: 3px;
+  gap: 2px;
+}
+.seg-btn {
+  padding: 6px 14px;
+  border-radius: calc(var(--rs) - 2px);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.seg-btn.active {
+  background: var(--bg-card);
+  color: var(--gold);
+  border: 1px solid var(--border-light);
+}
+
+/* ── Form label ── */
+.field-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 6px;
+}
+
+/* ── Animations ── */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 0.4; transform: scale(0.85); }
+  50%       { opacity: 1;   transform: scale(1.1); }
+}
+@keyframes slide-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+.fade-in { animation: fade-in 0.25s ease both; }

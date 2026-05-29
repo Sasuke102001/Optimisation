@@ -1,0 +1,110 @@
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Top nav ── */
+.app-nav {
+  height: var(--header-h);
+  background: var(--glass);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--glass-border);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+.app-nav-inner {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 0 24px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+/* Brand */
+.app-nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-shrink: 0;
+}
+.app-nav-glyph {
+  font-size: 14px;
+  color: var(--gold);
+  line-height: 1;
+}
+.app-nav-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+.app-nav-badge {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--gold-muted);
+  background: var(--gold-dim);
+  border: 1px solid rgba(230,211,163,0.12);
+  border-radius: 99px;
+  padding: 2px 8px;
+}
+
+/* Main nav tabs */
+.app-nav-tabs {
+  display: flex;
+  gap: 2px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--rs);
+  padding: 3px;
+}
+.app-nav-tab {
+  padding: 6px 18px;
+  border-radius: calc(var(--rs) - 2px);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  transition: all 0.15s;
+}
+.app-nav-tab.active {
+  background: var(--bg-card);
+  color: var(--gold);
+  border: 1px solid var(--border-light);
+  font-weight: 600;
+}
+
+/* Sub-tabs */
+.app-nav-subtabs {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+}
+.app-nav-subtab {
+  padding: 5px 14px;
+  border-radius: var(--rs);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-disabled);
+  transition: all 0.15s;
+}
+.app-nav-subtab.active {
+  color: var(--text-primary);
+  border-color: var(--border);
+  background: var(--bg-card);
+}
+.app-nav-subtab:hover:not(.active) { color: var(--text-secondary); }
+
+/* ── Main ── */
+.app-main {
+  flex: 1;
+}
