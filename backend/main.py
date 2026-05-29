@@ -3,11 +3,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from database import close_pools, init_pools
+from database import close_pools, init_pools, sync_venues_from_m2
 from routers import kpi, session_brief, show, venues
 
 ALLOWED_ORIGINS = [
-    "http://localhost:5173",   # Vite dev server
+    "http://localhost:5173",   # Dashboard dev server
+    "http://localhost:5174",   # SE app dev server
     "http://localhost:3000",
     # Vercel deployments added after deploy
 ]
@@ -16,6 +17,7 @@ ALLOWED_ORIGINS = [
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_pools()
+    await sync_venues_from_m2()   # preload all M2 venues into m3_venues on every startup
     yield
     await close_pools()
 
