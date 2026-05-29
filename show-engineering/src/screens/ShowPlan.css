@@ -19,6 +19,25 @@
 
 /* ── Sections ── */
 .sp-section { margin-bottom: 32px; }
+.sp-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.sp-section-header .sp-section-title { margin-bottom: 0; }
+.sp-reset-btn {
+  font-size: 11px;
+  color: var(--text-disabled);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.sp-reset-btn:hover { color: var(--gold-muted); }
+
 .sp-section-title {
   font-size: 13px;
   font-weight: 600;
@@ -26,84 +45,322 @@
   letter-spacing: 0.1em;
   color: var(--gold-muted);
   margin-bottom: 14px;
+  margin-top: 0;
 }
 
-/* ── 3a Night Arc strip ── */
-.sp-arc-strip {
+/* ═══════════════════════════════════════════════════════════
+   PART 1 — Quick Reference Strip
+   ═══════════════════════════════════════════════════════════ */
+
+.sp-qr-strip {
   display: flex;
-  gap: 0;
-  position: relative;
+  background: var(--bg-card);
+  border-radius: var(--r);
+  overflow: hidden;
 }
-.sp-arc-phase {
+
+.sp-qr-cell {
   flex: 1;
+  min-width: 160px;
+  padding: 14px 16px;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sp-qr-cell:last-child { border-right: none; }
+
+.sp-qr-cell-top {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+.sp-qr-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.sp-qr-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.sp-qr-time {
+  font-size: 11px;
+  color: var(--text-disabled);
+  white-space: nowrap;
+}
+.sp-qr-action {
+  font-size: 12px;
+  color: var(--gold);
+  line-height: 1.4;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PART 2+3 — Phase Arc (merged Night Arc + BPM + Energy Curve)
+   ═══════════════════════════════════════════════════════════ */
+
+.sp-phase-arc { }
+
+/* Energy curve wrapper */
+.sp-curve-wrap {
+  margin-bottom: 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--rs);
+  padding: 4px 0;
+  overflow: hidden;
+}
+
+.sp-energy-curve {
+  display: block;
+}
+
+/* Phase row — flex of phase+transition columns */
+.sp-phase-row {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+
+/* Wrapper column holding a phase card + transition card side-by-side */
+.sp-phase-col {
+  display: flex;
+  flex: 1;
+  min-width: 180px;
+  gap: 10px;
+  align-items: stretch;
+}
+
+/* ── Phase card v2 ── */
+.sp-phase-card-v2 {
+  flex: 1;
+  min-width: 0;
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-right: none;
-  padding: 16px 18px;
+  border-radius: var(--r);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 0 14px;
   position: relative;
-  transition: background 0.2s;
+  overflow: hidden;
 }
-.sp-arc-phase:first-child { border-radius: var(--r) 0 0 var(--r); }
-.sp-arc-phase:last-child  { border-radius: 0 var(--r) var(--r) 0; border-right: 1px solid var(--border); }
 
-.sp-arc-phase::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 3px;
+/* Color bar at top */
+.sp-pc-bar {
+  height: 5px;
   background: var(--phase-color, var(--border));
-  border-radius: 2px 2px 0 0;
-}
-.sp-arc-time  { font-size: 11px; color: var(--text-disabled); margin-bottom: 4px; }
-.sp-arc-label { font-size: 14px; font-weight: 700; color: var(--text-primary); margin-bottom: 6px; font-family: 'Clash Display', sans-serif; }
-.sp-arc-goal  { font-size: 12px; color: var(--text-secondary); line-height: 1.4; }
-.sp-arc-arrow {
-  position: absolute;
-  right: -10px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 14px;
-  color: var(--border-light);
-  z-index: 2;
-  background: var(--bg-primary);
-  padding: 2px 0;
+  width: 100%;
+  flex-shrink: 0;
 }
 
-/* ── 3b Phase detail grid ── */
-.sp-phase-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
+/* Phase header — name + time range */
+.sp-pc-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 16px 0;
+  flex-wrap: wrap;
 }
-.sp-phase-card { display: flex; flex-direction: column; gap: 8px; padding: 16px; }
-.sp-phase-header {
+.sp-pc-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.sp-pc-timerange {
   font-size: 11px;
+  color: var(--text-disabled);
+  white-space: nowrap;
+}
+
+/* Duration badge */
+.sp-pc-dur {
+  font-size: 11px;
+  color: var(--text-disabled);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 99px;
+  padding: 1px 8px;
+  align-self: flex-start;
+  margin: 0 16px;
+}
+
+.sp-pc-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 2px 0;
+}
+
+/* BPM display */
+.sp-pc-bpm {
+  font-size: 28px;
+  font-weight: 700;
+  font-family: 'Space Grotesk', sans-serif;
+  color: var(--text-primary);
+  line-height: 1;
+  padding: 0 16px;
+}
+.sp-pc-bpm-unit {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-left: 2px;
+}
+
+/* Key-value rows */
+.sp-pc-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 16px;
+}
+.sp-pc-k {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-disabled);
+}
+.sp-pc-v {
+  font-size: 12.5px;
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+/* Watch for section */
+.sp-watch-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-disabled);
+  padding: 0 16px;
+}
+
+.sp-watch-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 0 16px;
+  list-style: none;
+  flex: 1;
+}
+
+.sp-watch-item {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+  padding-left: 10px;
+  position: relative;
+}
+.sp-watch-item::before {
+  content: '·';
+  position: absolute;
+  left: 0;
+  color: var(--gold-muted);
+  font-size: 14px;
+  line-height: 1;
+}
+
+/* Boundary controls — positioned at bottom of card */
+.sp-boundary-wrap {
+  display: flex;
+  justify-content: flex-end;
+  padding: 4px 16px 0;
+}
+
+.sp-boundary-btn {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
+  border-radius: 99px;
+  padding: 2px 9px;
+  font-size: 10.5px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+.sp-boundary-btn:hover {
+  border-color: var(--gold-muted);
+  color: var(--gold);
+}
+
+.sp-boundary-input {
+  width: 90px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--gold-muted);
+  border-radius: var(--rs);
+  padding: 3px 6px;
+  font-size: 11px;
+  color: var(--text-primary);
+  font-family: inherit;
+}
+
+/* ── Transition card (Part 4) ── */
+.sp-transition-card {
+  width: 140px;
+  flex-shrink: 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 12px;
+}
+
+.sp-tc-top {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+.sp-tc-arrow {
+  font-size: 22px;
+  color: var(--gold);
+  line-height: 1;
+}
+.sp-tc-label {
+  font-size: 9.5px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: var(--gold-muted);
 }
-.sp-phase-bpm {
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--text-primary);
-  font-family: 'Space Grotesk', sans-serif;
-  line-height: 1;
+
+.sp-tc-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 0;
+}
+.sp-tc-item {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.45;
 }
 
+/* ═══════════════════════════════════════════════════════════
+   Existing sections — kept exactly
+   ═══════════════════════════════════════════════════════════ */
+
+/* sp-kv (used in old phase grid — kept for any reference) */
 .sp-kv { display: flex; flex-direction: column; gap: 1px; }
 .sp-k  { font-size: 10.5px; color: var(--text-disabled); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
 .sp-v  { font-size: 12.5px; color: var(--text-primary); }
 .sp-v--target { color: var(--text-secondary); font-size: 12px; }
 .sp-v--brain  { color: var(--src-counter); font-size: 12px; }
-
 .sp-kv--target { border-top: 1px solid var(--border); padding-top: 8px; margin-top: 2px; }
 
-/* ── 3c Interventions ── */
+/* Interventions */
 .sp-interventions { display: flex; flex-direction: column; gap: 8px; }
-
 .sp-iv-card { padding: 0; overflow: hidden; }
-
 .sp-iv-header {
   width: 100%;
   display: flex;
@@ -118,7 +375,6 @@
   transition: background 0.15s;
 }
 .sp-iv-header:hover { background: rgba(255,255,255,0.025); }
-
 .sp-iv-label {
   display: flex;
   align-items: baseline;
@@ -128,7 +384,6 @@
   line-height: 1.4;
 }
 .sp-iv-chevron { font-size: 10px; color: var(--text-disabled); flex-shrink: 0; }
-
 .sp-iv-tag {
   font-size: 10px;
   font-weight: 700;
@@ -140,9 +395,8 @@
   color: var(--watch);
   border: 1px solid rgba(245,158,11,0.2);
 }
-.sp-iv-tag--do    { background: var(--ok-bg);    color: var(--ok);    border-color: rgba(34,197,94,0.2); }
-.sp-iv-tag--watch { background: var(--violet-dim); color: #A78BFA; border-color: rgba(167,139,250,0.2); }
-
+.sp-iv-tag--do    { background: var(--ok-bg);      color: var(--ok);    border-color: rgba(34,197,94,0.2); }
+.sp-iv-tag--watch { background: var(--violet-dim);  color: #A78BFA;      border-color: rgba(167,139,250,0.2); }
 .sp-iv-body {
   padding: 0 18px 14px;
   display: flex;
@@ -159,7 +413,7 @@
   padding-top: 10px;
 }
 
-/* ── 3d Lighting table ── */
+/* Lighting / Prescription table */
 .sp-table {
   width: 100%;
   border-collapse: collapse;
@@ -185,7 +439,7 @@
 .sp-table tbody tr:hover td { background: rgba(255,255,255,0.02); }
 .sp-td-phase { font-weight: 600; color: var(--gold-muted); }
 
-/* ── 3e Staff notes ── */
+/* Staff notes */
 .sp-staff-card { padding: 18px 20px; }
 .sp-staff-list { display: flex; flex-direction: column; gap: 10px; padding-left: 18px; }
 .sp-staff-item {
@@ -196,8 +450,23 @@
   list-style-color: var(--gold-muted);
 }
 
+/* ── Part 5: Prescription reference toggle ── */
+.sp-ref-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--gold-muted);
+  font-family: 'Inter', sans-serif;
+  padding: 0;
+  transition: color 0.15s;
+}
+.sp-ref-toggle:hover { color: var(--gold); }
+
 /* ── Print ── */
 @media print {
   .sp-header-actions { display: none; }
   .sp-root { padding: 20px; }
+  .sp-transition-card { display: none; }
+  .sp-curve-wrap { display: none; }
 }

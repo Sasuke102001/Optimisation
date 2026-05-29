@@ -1,62 +1,22 @@
 import { useState } from 'react'
-import { useSEStore } from '../store/seStore'
+import {
+  useSEStore,
+  buildPhases,
+  formatTimeStr,
+  PHASE_PRESCRIPTIONS,
+  PHASE_LIGHTING_DATA,
+} from '../store/seStore'
 import { ConversationalPanel } from './ConversationalPanel'
 import './ShowPlan.css'
 
-// ── Mock data ────────────────────────────────────────────────────────────────
-
-const PHASES = [
-  { id: 'opening',   label: 'Opening',   time: '9–10 PM',    color: '#78716C', goal: 'Warm entry — ambient social priming' },
-  { id: 'build',     label: 'Build',     time: '10–11 PM',   color: '#7C3AED', goal: 'Momentum shift — floor activation' },
-  { id: 'peak',      label: 'Peak',      time: '11 PM–1 AM', color: '#E6D3A3', goal: 'Full release — sustained energy plateau' },
-  { id: 'winddown',  label: 'Wind Down', time: '1–2 AM',     color: '#D97706', goal: 'Graceful close — spend drive' },
-]
-
-const PHASE_DETAIL = [
-  {
-    phase: 'Opening',
-    bpm: '105–112',
-    chord: 'I–IV–V',
-    key: 'F major — Ionian',
-    bass: '55–70Hz · nominal',
-    target: 'Social priming, reduce inhibition threshold',
-    brainwave: 'Low-alpha 8–9Hz',
-  },
-  {
-    phase: 'Build',
-    bpm: '118–124',
-    chord: 'i–VII–VI–VII',
-    key: 'A minor — Aeolian',
-    bass: '60–80Hz +2dB',
-    target: 'Momentum, floor activation, social engagement',
-    brainwave: 'High-alpha 10–12Hz',
-  },
-  {
-    phase: 'Peak',
-    bpm: '128–134',
-    chord: 'i–VII–VI–VII (8-bar cycles)',
-    key: 'D minor — Dorian',
-    bass: '65–85Hz +3dB + 40Hz rumble stack',
-    target: 'Full motor activation, peak release, social proof lock-in',
-    brainwave: 'Low-beta 14–16Hz',
-  },
-  {
-    phase: 'Wind Down',
-    bpm: '110–116',
-    chord: 'I–V–vi–IV',
-    key: 'G major — Mixolydian',
-    bass: '55–65Hz · taper to nominal',
-    target: 'Graceful energy reduction, increase dwell + spend',
-    brainwave: 'Alpha bridge 9–10Hz',
-  },
-]
+// ─── Static mock data ──────────────────────────────────────────────────────────
 
 const INTERVENTIONS = [
   {
     id: 1,
     trigger: 'Dance floor occupancy < 30% after 30 mins into Build phase',
     action: 'Queue 2–3 familiar tracks in minor key at 124 BPM, 8-bar phrases',
-    watch: 'First 2–3 movers step onto floor — hold steady, don\'t escalate yet',
+    watch: "First 2–3 movers step onto floor — hold steady, don't escalate yet",
   },
   {
     id: 2,
@@ -72,13 +32,6 @@ const INTERVENTIONS = [
   },
 ]
 
-const LIGHTING = [
-  { phase: 'Opening',   intensity: '40%',  colour: 'Warm white',   movement: 'Slow pulse' },
-  { phase: 'Build',     intensity: '60%',  colour: 'Blue / purple', movement: 'Medium sweep' },
-  { phase: 'Peak',      intensity: '85%',  colour: 'Multi-colour',  movement: 'Fast strobe on drops' },
-  { phase: 'Wind Down', intensity: '30%',  colour: 'Warm amber',    movement: 'Static' },
-]
-
 const STAFF_NOTES = [
   'Position 2 staff near the floor entrance during Build — creates social proof for reluctant dancers.',
   'Brief bar staff: upsell doubles and cocktails from 11 PM; peak phase correlates with peak spend intent.',
@@ -87,23 +40,163 @@ const STAFF_NOTES = [
   'Do not use over-the-mic announcements during Build or Peak — disrupts neuroacoustic continuity.',
 ]
 
-// ── Component ─────────────────────────────────────────────────────────────────
+// ─── Part 1: Quick Reference action lines ─────────────────────────────────────
+
+const QR_ACTION: Record<string, string> = {
+  'Opening':   'Hold energy low. Let room fill naturally.',
+  'Warm Up':   'Introduce rhythmic familiarity. Watch for shoulder movement.',
+  'Build':     'Escalate every 2 tracks. Watch for first floor movers.',
+  'Peak':      'Lock in and hold. Don\'t second-guess the room.',
+  'Wind Down': 'Slow BPM gradually. Cue bar staff to increase table rounds.',
+}
+
+// ─── Part 2: Watch for signals ────────────────────────────────────────────────
+
+const PHASE_WATCH_SIGNALS: Record<string, string[]> = {
+  'Opening':   ['Guests clustering at the bar — room not ready', 'Conversations louder than music — hold BPM', 'First small group settles near floor — green light to start nudging'],
+  'Warm Up':   ['Shoulders moving at tables — social priming working', 'Bar queue forming — energy rising', 'People looking toward the floor — ready to escalate'],
+  'Build':     ['First 2–3 people step onto floor — hold steady, let contagion work', 'Dance floor occupancy below 30% after 30 min — trigger intervention', 'Crowd facing the DJ — momentum locked'],
+  'Peak':      ['Energy plateau — normal, hold prescription', 'Energy drop >15% — trigger intervention immediately', 'Groups leaving floor — check volume, consider familiar track'],
+  'Wind Down': ['Conversations at tables increasing — good signal', 'Bar spend visibly rising — Wind Down working', 'Crowd thinning faster than expected — accelerate to close'],
+}
+
+// ─── Part 3: Energy values per phase ─────────────────────────────────────────
+
+const PHASE_ENERGY: Record<string, number> = {
+  'Opening':   30,
+  'Warm Up':   50,
+  'Build':     72,
+  'Peak':      95,
+  'Wind Down': 45,
+}
+
+// ─── Part 4: Transition cards ─────────────────────────────────────────────────
+
+const PHASE_TRANSITIONS: Record<string, string[]> = {
+  'Opening→Warm Up':   ['Drop 1 track with +2 BPM nudge', 'Keep key consistent — no jarring shifts', 'Watch shoulders before escalating further'],
+  'Opening→Build':     ['Run 2 bridge tracks at 114–116 BPM', 'Shift to minor key feel on track 2', 'Wait for first floor movers before full Build energy'],
+  'Opening→Peak':      ['Rare direct jump — only if room is already hot', 'Use a crowd-familiar anthem as the bridge', 'Full sub-bass in immediately'],
+  'Warm Up→Build':     ['One track overlap in BPM range (118)', 'Introduce minor chord feel', "Don't announce the transition — let it happen"],
+  'Warm Up→Peak':      ['2 escalating bridge tracks', 'Sub-bass +1dB then +2dB across tracks', 'Confirm floor occupancy >40% before committing to Peak'],
+  'Build→Peak':        ['Single high-energy pivot track', 'Sub-bass to full prescription in one step', 'Hold for 2 full tracks before reading crowd response'],
+  'Peak→Wind Down':    ['Avoid hard BPM drop — step down over 3 tracks', 'Shift to major key on track 2 of Wind Down', 'Signal bar staff as you enter Wind Down'],
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function phaseDuration(startStr: string, endStr: string): string {
+  const toMins = (t: string) => {
+    const [h, m] = t.split(':').map(Number)
+    return h * 60 + (m ?? 0)
+  }
+  let diff = toMins(endStr) - toMins(startStr)
+  if (diff <= 0) diff += 1440
+  const h = Math.floor(diff / 60)
+  const m = diff % 60
+  if (h === 0) return `${m} min`
+  if (m === 0) return `${h} hr`
+  return `${h} hr ${m} min`
+}
+
+// ─── Energy Curve SVG ─────────────────────────────────────────────────────────
+
+function EnergyCurve({ labels }: { labels: string[] }) {
+  const W = 1000 // viewBox width
+  const H = 56
+  const PAD = 16
+
+  const n = labels.length
+  // One point per phase, evenly spaced horizontally
+  const pts = labels.map((label, i) => ({
+    x: PAD + (i / (n - 1 || 1)) * (W - PAD * 2),
+    y: H - PAD - ((PHASE_ENERGY[label] ?? 50) / 100) * (H - PAD * 2),
+  }))
+
+  // Build smooth bezier path
+  let d = `M ${pts[0].x} ${pts[0].y}`
+  for (let i = 1; i < pts.length; i++) {
+    const prev = pts[i - 1]
+    const cur = pts[i]
+    const cpX = (prev.x + cur.x) / 2
+    d += ` C ${cpX} ${prev.y} ${cpX} ${cur.y} ${cur.x} ${cur.y}`
+  }
+
+  // Phase separator x positions (between phases)
+  const sepXs = labels.slice(0, -1).map((_, i) =>
+    PAD + ((i + 0.5) / (n - 1 || 1)) * (W - PAD * 2)
+  )
+
+  return (
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      preserveAspectRatio="none"
+      width="100%"
+      height={H}
+      className="sp-energy-curve"
+      aria-hidden="true"
+    >
+      {/* Vertical separator lines */}
+      {sepXs.map((x, i) => (
+        <line
+          key={i}
+          x1={x} y1={4} x2={x} y2={H - 4}
+          stroke="var(--border)"
+          strokeWidth="1"
+          strokeDasharray="4 4"
+        />
+      ))}
+
+      {/* Curve */}
+      <path
+        d={d}
+        fill="none"
+        stroke="var(--gold-muted)"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+
+      {/* Dots */}
+      {pts.map((p, i) => (
+        <circle key={i} cx={p.x} cy={p.y} r="4" fill="var(--gold)" />
+      ))}
+    </svg>
+  )
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
 
 export function ShowPlan() {
-  const { selectedVenue, sessionContext, resetGeneration, setConversationalPanel, conversationalPanelOpen } = useSEStore()
+  const {
+    selectedVenue, sessionContext,
+    manualBoundaries, setBoundary, resetBoundaries,
+    resetGeneration, setConversationalPanel, conversationalPanelOpen,
+  } = useSEStore()
+
   const [expandedIntervention, setExpandedIntervention] = useState<number | null>(null)
+  const [editingBoundary, setEditingBoundary] = useState<number | null>(null)
+  const [refOpen, setRefOpen] = useState(false)
+
+  const phases = buildPhases(
+    sessionContext.startTime,
+    sessionContext.endTime,
+    sessionContext.phaseCount,
+    manualBoundaries,
+  )
 
   const dateLabel = sessionContext.date
     ? new Date(sessionContext.date).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
     : ''
 
-  function handlePrint() {
-    window.print()
+  function handleBoundaryCommit(index: number, value: string) {
+    if (value) setBoundary(index, value)
+    setEditingBoundary(null)
   }
 
   return (
     <div className="sp-root fade-in">
-      {/* ── Header ── */}
+
+      {/* ── Header (unchanged) ── */}
       <div className="sp-header">
         <div className="sp-header-meta">
           <h1 className="sp-title clash">{selectedVenue?.name}</h1>
@@ -113,7 +206,7 @@ export function ShowPlan() {
           <button id="refine-plan-btn" className="btn btn-ghost" onClick={() => setConversationalPanel(true)}>
             ✦ Refine with Agent 7
           </button>
-          <button id="print-plan-btn" className="btn btn-ghost" onClick={handlePrint}>
+          <button id="print-plan-btn" className="btn btn-ghost" onClick={() => window.print()}>
             ⎙ Print / Screenshot
           </button>
           <button id="save-plan-btn" className="btn btn-ghost" style={{ opacity: 0.5, cursor: 'not-allowed' }}>
@@ -125,55 +218,136 @@ export function ShowPlan() {
         </div>
       </div>
 
-      {/* 3a — Night Arc Overview */}
+      {/* ── Part 1: Quick Reference Strip ── */}
       <section className="sp-section">
-        <h2 className="sp-section-title clash">Night Arc</h2>
-        <div className="sp-arc-strip">
-          {PHASES.map((p, i) => (
-            <div key={p.id} className="sp-arc-phase" style={{ '--phase-color': p.color } as React.CSSProperties}>
-              <div className="sp-arc-time">{p.time}</div>
-              <div className="sp-arc-label">{p.label}</div>
-              <div className="sp-arc-goal">{p.goal}</div>
-              {i < PHASES.length - 1 && <div className="sp-arc-arrow">→</div>}
+        <h2 className="sp-section-title clash">Tonight at a Glance</h2>
+        <div className="sp-qr-strip">
+          {phases.map((p) => (
+            <div key={p.label} className="sp-qr-cell">
+              <div className="sp-qr-cell-top">
+                <span className="sp-qr-dot" style={{ background: p.color }} />
+                <span className="sp-qr-name">{p.label}</span>
+                <span className="sp-qr-time">{p.timeRange}</span>
+              </div>
+              <div className="sp-qr-action">{QR_ACTION[p.label] ?? '—'}</div>
             </div>
           ))}
         </div>
       </section>
 
-      {/* 3b — BPM + Chord Arc */}
-      <section className="sp-section">
-        <h2 className="sp-section-title clash">BPM + Chord Arc</h2>
-        <div className="sp-phase-grid">
-          {PHASE_DETAIL.map((p) => (
-            <div key={p.phase} className="card sp-phase-card">
-              <div className="sp-phase-header">{p.phase}</div>
-              <div className="sp-phase-bpm">{p.bpm} BPM</div>
-              <div className="sp-kv">
-                <span className="sp-k">Chord</span>
-                <span className="sp-v">{p.chord}</span>
+      {/* ── Part 2 + 3: Phase Arc (replaces Night Arc + BPM sections) ── */}
+      <section className="sp-section sp-phase-arc">
+        <div className="sp-section-header">
+          <h2 className="sp-section-title clash">Phase Arc</h2>
+          {manualBoundaries && (
+            <button className="sp-reset-btn" onClick={resetBoundaries}>Reset to equal splits</button>
+          )}
+        </div>
+
+        {/* Energy Curve */}
+        <div className="sp-curve-wrap">
+          <EnergyCurve labels={phases.map(p => p.label)} />
+        </div>
+
+        {/* Phase cards + transition cards */}
+        <div className="sp-phase-row">
+          {phases.map((p, i) => {
+            const rx = PHASE_PRESCRIPTIONS[p.label]
+            const signals = PHASE_WATCH_SIGNALS[p.label] ?? []
+            const dur = phaseDuration(p.startTimeStr, p.endTimeStr)
+            const transKey = i < phases.length - 1 ? `${p.label}→${phases[i + 1].label}` : null
+            const transList = transKey ? (PHASE_TRANSITIONS[transKey] ?? []) : null
+
+            return (
+              <div key={p.label} className="sp-phase-col">
+                {/* Phase card */}
+                <div
+                  className="sp-phase-card-v2"
+                  style={{ '--phase-color': p.color } as React.CSSProperties}
+                >
+                  {/* Color bar */}
+                  <div className="sp-pc-bar" />
+
+                  {/* Phase name + time */}
+                  <div className="sp-pc-header">
+                    <span className="sp-pc-name clash">{p.label}</span>
+                    <span className="sp-pc-timerange">{p.timeRange}</span>
+                  </div>
+                  <span className="sp-pc-dur">{dur}</span>
+
+                  <div className="sp-pc-divider" />
+
+                  {/* BPM + music prescription */}
+                  {rx ? (
+                    <>
+                      <div className="sp-pc-bpm">{rx.bpm} <span className="sp-pc-bpm-unit">BPM</span></div>
+                      <div className="sp-pc-row"><span className="sp-pc-k">Chord</span><span className="sp-pc-v">{rx.chord}</span></div>
+                      <div className="sp-pc-row"><span className="sp-pc-k">Key</span><span className="sp-pc-v">{rx.key}</span></div>
+                      <div className="sp-pc-row"><span className="sp-pc-k">Sub-bass</span><span className="sp-pc-v">{rx.bass}</span></div>
+                    </>
+                  ) : (
+                    <p className="sp-pc-v" style={{ opacity: 0.4 }}>No prescription</p>
+                  )}
+
+                  <div className="sp-pc-divider" />
+
+                  {/* Watch For signals */}
+                  <div className="sp-watch-label">WATCH FOR</div>
+                  <ul className="sp-watch-list">
+                    {signals.map((s, si) => (
+                      <li key={si} className="sp-watch-item">{s}</li>
+                    ))}
+                  </ul>
+
+                  {/* Boundary pill */}
+                  {i < phases.length - 1 && (
+                    <div className="sp-boundary-wrap">
+                      {editingBoundary === i ? (
+                        <input
+                          type="time"
+                          className="sp-boundary-input"
+                          defaultValue={p.endTimeStr}
+                          autoFocus
+                          onBlur={(e) => handleBoundaryCommit(i, e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleBoundaryCommit(i, e.currentTarget.value)
+                            if (e.key === 'Escape') setEditingBoundary(null)
+                          }}
+                        />
+                      ) : (
+                        <button
+                          className="sp-boundary-btn"
+                          title="Click to adjust boundary"
+                          onClick={() => setEditingBoundary(i)}
+                        >
+                          {formatTimeStr(p.endTimeStr)} ▾
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Transition card — between this phase and next */}
+                {transList && (
+                  <div className="sp-transition-card">
+                    <div className="sp-tc-top">
+                      <span className="sp-tc-arrow">→</span>
+                      <span className="sp-tc-label">TRANSITION</span>
+                    </div>
+                    <ul className="sp-tc-list">
+                      {transList.map((t, ti) => (
+                        <li key={ti} className="sp-tc-item">· {t}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
-              <div className="sp-kv">
-                <span className="sp-k">Key</span>
-                <span className="sp-v">{p.key}</span>
-              </div>
-              <div className="sp-kv">
-                <span className="sp-k">Sub-bass</span>
-                <span className="sp-v">{p.bass}</span>
-              </div>
-              <div className="sp-kv sp-kv--target">
-                <span className="sp-k">Target</span>
-                <span className="sp-v sp-v--target">{p.target}</span>
-              </div>
-              <div className="sp-kv">
-                <span className="sp-k">Brainwave</span>
-                <span className="sp-v sp-v--brain">{p.brainwave}</span>
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </section>
 
-      {/* 3c — Intervention Decision Tree */}
+      {/* ── 3c Intervention Decision Tree (unchanged) ── */}
       <section className="sp-section">
         <h2 className="sp-section-title clash">Intervention Decision Tree</h2>
         <div className="sp-interventions">
@@ -207,7 +381,7 @@ export function ShowPlan() {
         </div>
       </section>
 
-      {/* 3d — Lighting Arc */}
+      {/* ── 3d Lighting Arc (unchanged) ── */}
       <section className="sp-section">
         <h2 className="sp-section-title clash">Lighting Arc</h2>
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
@@ -221,20 +395,24 @@ export function ShowPlan() {
               </tr>
             </thead>
             <tbody>
-              {LIGHTING.map((row) => (
-                <tr key={row.phase}>
-                  <td className="sp-td-phase">{row.phase}</td>
-                  <td>{row.intensity}</td>
-                  <td>{row.colour}</td>
-                  <td>{row.movement}</td>
-                </tr>
-              ))}
+              {phases.map((p) => {
+                const lt = PHASE_LIGHTING_DATA[p.label]
+                if (!lt) return null
+                return (
+                  <tr key={p.label}>
+                    <td className="sp-td-phase">{p.label}</td>
+                    <td>{lt.intensity}</td>
+                    <td>{lt.colour}</td>
+                    <td>{lt.movement}</td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
       </section>
 
-      {/* 3e — Staff Notes */}
+      {/* ── 3e Staff Notes (unchanged) ── */}
       <section className="sp-section">
         <h2 className="sp-section-title clash">Staff Notes</h2>
         <div className="card sp-staff-card">
@@ -246,7 +424,43 @@ export function ShowPlan() {
         </div>
       </section>
 
-      {/* Conversational panel overlay */}
+      {/* ── Part 5: Prescription Reference (collapsed) ── */}
+      <section className="sp-section">
+        <button
+          id="prescription-ref-toggle"
+          className="sp-ref-toggle"
+          onClick={() => setRefOpen(!refOpen)}
+        >
+          {refOpen ? '▼ Hide' : '▶ Show'} prescription reference
+        </button>
+        {refOpen && (
+          <div className="card fade-in" style={{ padding: 0, overflow: 'hidden', marginTop: 10 }}>
+            <table className="sp-table">
+              <thead>
+                <tr>
+                  <th>Phase</th>
+                  <th>Behavioral Target</th>
+                  <th>Brainwave</th>
+                </tr>
+              </thead>
+              <tbody>
+                {phases.map((p) => {
+                  const rx = PHASE_PRESCRIPTIONS[p.label]
+                  if (!rx) return null
+                  return (
+                    <tr key={p.label}>
+                      <td className="sp-td-phase">{p.label}</td>
+                      <td style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>{rx.target}</td>
+                      <td style={{ fontSize: 12.5, color: 'var(--src-counter)' }}>{rx.brainwave}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
       {conversationalPanelOpen && <ConversationalPanel />}
     </div>
   )
