@@ -150,7 +150,8 @@ async def sync_venues_from_m2() -> int:
             """,
             [
                 (r["id"], r["name"], r["area"], r["city"],
-                 json.dumps(r["types"]) if r["types"] is not None else None)
+                 json.dumps(r["types"]) if isinstance(r["types"], list)
+                 else r["types"])  # already a JSON string from M2 TEXT column
                 for r in rows
             ],
         )
@@ -175,4 +176,16 @@ async def fetch_m3_venue_list() -> list[dict]:
             ORDER BY venue_name ASC
             """
         )
-    return [dict(r) for r in rows]
+    result = []
+    for r in rows:
+        d = dict(r)
+        t = d.get('types')
+        if isinstance(t, str):
+            try:
+                d['types'] = json.loads(t)
+            except Exception:
+                d['types'] = []
+        elif t is None:
+            d['types'] = []
+        result.append(d)
+    return result
