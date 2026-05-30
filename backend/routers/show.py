@@ -10,10 +10,10 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
 from database import fetch_m2_venue_context, get_m3_pool
-from models import EvidencePackage, ShowBriefRequest, ShowOutcomeRequest
+from models import ConversationRequest, EvidencePackage, ShowBriefRequest, ShowOutcomeRequest
 from routers.council import (
     COUNCIL_DELIBERATING, COUNCIL_SYNTHESIS,
-    run_council, run_council_fast, _extract_json,
+    run_council, run_council_fast, run_agent7, _extract_json,
 )
 
 router = APIRouter()
@@ -247,3 +247,20 @@ async def log_show_outcome(body: ShowOutcomeRequest):
         )
 
     return {"logged": True, "outcome_id": outcome_id}
+
+
+@router.post("/converse")
+async def converse_with_agent7(body: ConversationRequest):
+    """
+    Agent 7 — Conversational Guide (Nemotron 120B).
+    Interprets the operator's natural language refinement and returns a structured
+    response: what was heard, a summary, and a parameter_patch to apply before
+    regenerating.
+    """
+    result = await run_agent7(
+        operator_input=body.operator_input,
+        venue_name=body.venue_name,
+        current_context=body.current_context,
+        current_plan=body.current_plan,
+    )
+    return result

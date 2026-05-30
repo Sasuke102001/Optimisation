@@ -752,6 +752,131 @@ async def run_council(
         await _log_run_complete(run_id, collector["content"], models_errored, total_ms, status)
 
 
+_AGENT7_SYSTEM = """\
+You are Agent 7 of the Polynovea Show Engineering Council — the Conversational Guide.
+The operator has sent a natural language refinement or question about their show plan.
+
+If they are requesting a change: interpret what they mean and return a structured JSON.
+If they are asking a question: answer it in plain language using the plan and context provided.
+
+Return ONLY valid JSON in this exact format — no other text before or after:
+{
+  "heard": [
+    "specific interpretation, e.g. Crowd type → Corporate / older demographic",
+    "another specific interpretation"
+  ],
+  "summary": "plain language explanation of what will change and why (or the answer to their question)",
+  "parameter_patch": {
+    "crowd_type": null,
+    "crowd_size": null,
+    "show_type": null,
+    "notes": null,
+    "phase_count": null,
+    "extra_context": null
+  },
+  "requires_regeneration": true,
+  "explanation_only": false,
+  "confidence": "HIGH"
+}
+
+Rules:
+- Only include non-null values in parameter_patch for fields the operator explicitly or clearly implicitly changed
+- crowd_type must be one of: regular, corporate, college, mixed
+- crowd_size must be one of: intimate, medium, large
+- show_type must be one of: dj_night, live_band, open_mic, private_event
+- phase_count must be an integer between 2 and 5
+- extra_context: free-text additional context for Stage 1 agents (e.g. "older crowd, less aggressive energy arc")
+- heard items must be specific, not generic
+- If the operator is asking a question (not requesting a change), set explanation_only: true and put the answer in summary
+- If explanation_only is true, requires_regeneration must be false
+- If uncertain, set confidence to LOW or MEDIUM
+"""
+
+
+async def run_agent7(
+    operator_input: str,
+    venue_name: str,
+    current_context: dict,
+    current_plan: dict | None = None,
+) -> dict:
+    """
+    Agent 7 — Conversational Guide (Nemotron 120B).
+    Interprets operator natural language input and returns a structured patch.
+    Returns a dict with: heard, summary, parameter_patch, requires_regeneration,
+    explanation_only, confidence.
+    """
+    context_block = json.dumps(current_context, indent=2, default=_json_default)
+    plan_block = json.dumps(current_plan, indent=2, default=_json_default) if current_plan else "Not yet generated"
+
+    messages = [
+        {"role": "system", "content": _AGENT7_SYSTEM},
+        {"role": "user", "content": f"""\
+VENUE: {venue_name}
+
+CURRENT SESSION CONTEXT:
+{context_block}
+
+CURRENT SHOW PLAN:
+{plan_block}
+
+OPERATOR SAYS:
+{operator_input}"""},
+    ]
+
+    ac = get_nemotron_client()
+    if ac is None:
+        return {
+            "heard": [],
+            "summary": "Agent 7 unavailable — NVIDIA_API_KEY_NEMOTRON_120B not set.",
+            "parameter_patch": {},
+            "requires_regeneration": False,
+            "explanation_only": True,
+            "confidence": "LOW",
+        }
+
+    try:
+        resp = await ac.client.chat.completions.create(
+            model=ac.model,
+            messages=messages,
+            temperature=0.25,
+            max_tokens=600,
+            extra_body={
+                "chat_template_kwargs": {"enable_thinking": True},
+                "reasoning_budget": 4096,
+            },
+        )
+        raw = _strip_thinking(resp.choices[0].message.content or "")
+        parsed = _extract_json(raw)
+        if not parsed:
+            return {
+                "heard": [],
+                "summary": raw or "Agent 7 returned an unreadable response.",
+                "parameter_patch": {},
+                "requires_regeneration": False,
+                "explanation_only": True,
+                "confidence": "LOW",
+            }
+        # Strip null values from parameter_patch
+        patch = {k: v for k, v in (parsed.get("parameter_patch") or {}).items() if v is not None}
+        return {
+            "heard":                parsed.get("heard", []),
+            "summary":              parsed.get("summary", ""),
+            "parameter_patch":      patch,
+            "requires_regeneration": parsed.get("requires_regeneration", bool(patch)),
+            "explanation_only":     parsed.get("explanation_only", False),
+            "confidence":           parsed.get("confidence", "MEDIUM"),
+        }
+    except Exception as exc:
+        return {
+            "heard": [],
+            "summary": f"Agent 7 error: {exc}",
+            "parameter_patch": {},
+            "requires_regeneration": False,
+            "explanation_only": True,
+            "confidence": "LOW",
+        }
+
+
 async def run_council_fast(
     package: EvidencePackage,
     log_context: dict | None = None,

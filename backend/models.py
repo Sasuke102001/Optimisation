@@ -176,6 +176,14 @@ class NeuroacousticPrescription(BaseModel):
     raw_passages: list[str] = []            # verbatim prescription text from SE research
 
 
+class ConversationRequest(BaseModel):
+    operator_input: str
+    venue_id: int
+    venue_name: str
+    current_context: dict           # sessionContext fields
+    current_plan: dict | None = None  # planOutput.rawBrief or parsed plan
+
+
 class EvidencePackage(BaseModel):
     session_state: dict
     venue_profile: dict

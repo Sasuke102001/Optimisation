@@ -55,6 +55,22 @@ export interface PlanOutput {
   generatedAt: string
 }
 
+export interface Agent7Response {
+  heard: string[]
+  summary: string
+  parameter_patch: {
+    crowd_type?: string
+    crowd_size?: string
+    show_type?: string
+    notes?: string
+    phase_count?: number
+    extra_context?: string
+  }
+  requires_regeneration: boolean
+  explanation_only: boolean
+  confidence: string
+}
+
 export type StreamEntryType = 'status' | 'r1' | 'r2' | 'synthesis_start'
 
 export interface StreamEntry {
@@ -258,11 +274,16 @@ interface SEState {
   planOutput: PlanOutput | null
   streamLog: StreamEntry[]
   synthesisBuf: string
+  agent7Response: Agent7Response | null
+  agent7Loading: boolean
 
   setNavSection: (s: NavSection) => void
   setPlanScreen: (s: PlanScreen) => void
   setHistoryScreen: (s: HistoryScreen) => void
   selectVenue: (v: Venue) => void
+  sendToAgent7: (input: string) => Promise<void>
+  applyAgent7Patch: () => void
+  clearAgent7: () => void
   clearVenue: () => void
   setSessionContext: (patch: Partial<SessionContext>) => void
   setBoundary: (index: number, time: string) => void
@@ -333,6 +354,8 @@ export const useSEStore = create<SEState>((set, get) => ({
   planOutput: null,
   streamLog: [],
   synthesisBuf: '',
+  agent7Response: null,
+  agent7Loading: false,
 
   setNavSection: (s) => set({ navSection: s }),
   setPlanScreen: (s) => set({ planScreen: s }),
@@ -360,6 +383,63 @@ export const useSEStore = create<SEState>((set, get) => ({
       return { manualBoundaries: next }
     }),
   resetBoundaries: () => set({ manualBoundaries: null }),
+  sendToAgent7: async (input: string) => {
+    const { selectedVenue, sessionContext, planOutput } = get()
+    if (!selectedVenue) return
+    set({ agent7Loading: true, agent7Response: null })
+    try {
+      const res = await fetch('/api/show/converse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          operator_input: input,
+          venue_id: selectedVenue.id,
+          venue_name: selectedVenue.name,
+          current_context: sessionContext,
+          current_plan: planOutput ? { rawBrief: planOutput.rawBrief } : null,
+        }),
+      })
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`)
+      const data: Agent7Response = await res.json()
+      set({ agent7Response: data, agent7Loading: false })
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      set({
+        agent7Loading: false,
+        agent7Response: {
+          heard: [],
+          summary: `Error: ${msg}`,
+          parameter_patch: {},
+          requires_regeneration: false,
+          explanation_only: true,
+          confidence: 'LOW',
+        },
+      })
+    }
+  },
+
+  applyAgent7Patch: () => {
+    const { agent7Response, sessionContext } = get()
+    if (!agent7Response) return
+    const patch = agent7Response.parameter_patch
+    const contextPatch: Partial<typeof sessionContext> = {}
+    if (patch.crowd_type)  contextPatch.crowdType  = patch.crowd_type as typeof sessionContext.crowdType
+    if (patch.crowd_size)  contextPatch.crowdSize  = patch.crowd_size as typeof sessionContext.crowdSize
+    if (patch.show_type)   contextPatch.showType   = patch.show_type as typeof sessionContext.showType
+    if (patch.phase_count) contextPatch.phaseCount = patch.phase_count
+    if (patch.notes != null) contextPatch.notes = patch.notes
+    if (patch.extra_context) {
+      contextPatch.notes = [sessionContext.notes, patch.extra_context].filter(Boolean).join(' · ')
+    }
+    set(s => ({
+      sessionContext: { ...s.sessionContext, ...contextPatch },
+      agent7Response: null,
+      agent7Loading: false,
+    }))
+  },
+
+  clearAgent7: () => set({ agent7Response: null, agent7Loading: false }),
+
   startGeneration: async () => {
     const { selectedVenue, sessionContext } = get()
     if (!selectedVenue) {
