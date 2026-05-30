@@ -1,128 +1,148 @@
 """
-routers/council.py
-The M3 Show Engineering Council — 2-round debate engine.
+routers/council.py — Polynovea Show Engineering Council
 
-Architecture (from Step 5 locked decisions):
-  R1  — Nemotron 120B proposes a 5-part suggestion from the evidence package
-  R2  — DeepSeek Flash challenges R1 (alternative lever or interpretation)
-  R3  — Nemotron 120B synthesises final 5-part output (streamed live)
+7-agent pipeline:
+  Stage 1 (parallel)  — Agents 1–4: evidence sweep
+  Stage 2 (sequential)— Agents 5–6: integration + prescription
+  Stage 3 (on-demand) — Agent 7: conversational guide (not invoked here)
 
-The Council receives a pre-assembled EvidencePackage (Stage 1 output).
-It does NOT do retrieval — that is Stage 1's job.
-
-5-part output format (mandatory):
-  State:     What the room is doing right now
-  Mechanism: The behavioral science WHY
-  Lever:     Which variable to change — music / volume / lighting / staff / layout
-  Action:    The specific instruction the operator executes right now
-  Signal:    What to watch for to confirm it worked
+Model assignments (all via NVIDIA NIM):
+  Agent 1  Behavioral KAG    Nemotron 120B
+  Agent 2  Behavioral RAG    Llama 3.3 70B
+  Agent 3  Neuroacoustic KAG DeepSeek Flash
+  Agent 4  Neuroacoustic RAG Qwen 122B
+  Agent 5  Integrator        DeepSeek Pro
+  Agent 6  Prescriber        Mistral Large   (streams the final plan)
+  Agent 7  Conversational    Nemotron 120B   (not invoked here)
 """
 
 import asyncio
+import glob as _glob
 import json
+import os
 import re
 import time
 from decimal import Decimal
 from typing import AsyncGenerator
 
 from models import EvidencePackage
-from routers.providers import get_nemotron_client, get_deepseek_r1_client
+from routers.providers import (
+    get_deepseek_pro_client,
+    get_deepseek_r1_client,
+    get_llama_client,
+    get_mistral_client,
+    get_nemotron_client,
+    get_qwen_client,
+)
 from supabase_client import get_supabase
 
-# ─── Sentinels (forwarded to frontend) ───────────────────────────────────────
+# ─── Sentinels ────────────────────────────────────────────────────────────────
 
 COUNCIL_DELIBERATING = "[COUNCIL:DELIBERATING]"
 COUNCIL_SYNTHESIS    = "[COUNCIL:SYNTHESIS]"
 
-# ─── System prompt ────────────────────────────────────────────────────────────
+# ─── File loading ─────────────────────────────────────────────────────────────
 
-_COUNCIL_SYSTEM = """\
-You are part of the Polynovea Show Engineering Council — a deliberative AI system that generates \
-actionable behavioral engineering suggestions for live venue operators.
+_BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-You receive a pre-assembled evidence package containing:
-- Current crowd state (KPI pattern across zones)
-- M2 venue behavioral profile (who comes here, how they behave)
-- Behavioral science evidence (mechanisms, theory passages from research corpus)
-- Neuroacoustic prescriptions (specific music parameters mapped to this crowd state)
-- Prior session history at this venue
+# Module-level cache — loaded once per process
+_BEHAVIORAL_PIPELINE_CACHE: str | None = None
+_RESEARCH_CORPUS_CACHE: str | None = None
+_SE_PIPELINE_CACHE: str | None = None
+_RESEARCH_SE_CORPUS_CACHE: str | None = None
 
-Your output must be a 5-part suggestion:
-State: [what the room is doing right now]
-Mechanism: [the behavioral science WHY]
-Lever: [which variable to change — music / volume / lighting / staff / layout]
-Action: [the specific instruction the operator can execute right now]
-Signal: [what to watch for to confirm it worked]
 
-Be specific. Use the neuroacoustic prescription when available — cite BPM ranges, chord structures, \
-frequency emphases by name. Do not hedge with "consider" or "might" — give the operator a clear call.\
-"""
+def _read_file(path: str, max_chars: int = 8000) -> str:
+    try:
+        with open(path, encoding="utf-8") as f:
+            content = f.read(max_chars)
+        if len(content) == max_chars:
+            content += "\n…[truncated]"
+        return content
+    except FileNotFoundError:
+        return "[not found]"
+    except Exception as exc:
+        return f"[read error: {exc}]"
 
-_SYNTHESIS_SYSTEM = """
-You are the final synthesiser for the Polynovea Show Engineering Council.
 
-Output ONLY a JSON object in this exact shape — no other text before or after:
+def _load_behavioral_pipeline() -> str:
+    global _BEHAVIORAL_PIPELINE_CACHE
+    if _BEHAVIORAL_PIPELINE_CACHE is not None:
+        return _BEHAVIORAL_PIPELINE_CACHE
+    output_dir = os.path.join(_BACKEND_DIR, "research_pipeline", "output")
+    targets = [
+        ("BEHAVIORAL_STATES",    os.path.join(output_dir, "behavioral_states.json")),
+        ("INTERVENTIONS",        os.path.join(output_dir, "interventions.json")),
+        ("CAUSAL_RELATIONSHIPS", os.path.join(output_dir, "causal_relationships.json")),
+        ("VARIABLES",            os.path.join(output_dir, "variables.json")),
+        ("KPIS",                 os.path.join(output_dir, "kpis.json")),
+    ]
+    parts = [f"=== {label} ===\n{_read_file(path)}" for label, path in targets]
+    _BEHAVIORAL_PIPELINE_CACHE = "\n\n".join(parts)
+    return _BEHAVIORAL_PIPELINE_CACHE
 
-{
-  "council_brief": {
-    "state": "one sentence — what the room is doing tonight",
-    "mechanism": "one or two sentences — behavioral science reasoning",
-    "lever": "the specific controllable variable",
-    "action": "the exact instruction the operator executes — cite BPM, chord, frequency by name",
-    "signal": "what to watch for in the next 5–10 minutes to confirm it worked"
-  },
-  "phase_arc": [
-    {
-      "phase_name": "Opening",
-      "bpm": "105–112",
-      "chord": "I–IV–V",
-      "key": "F major — Ionian",
-      "bass": "55–70Hz · nominal",
-      "watch_for": ["...", "...", "..."],
-      "action_line": "Hold energy low. Let room fill naturally.",
-      "reference_tracks": [
-        {
-          "bpm": 124,
-          "key": "Am",
-          "chords": ["Am-F-C-G"],
-          "energy_score": 72,
-          "why": "Familiar tonic resolution — low cognitive load, sustains alpha state, lowers approach inhibition"
-        },
-        {
-          "bpm": 128,
-          "key": "Em",
-          "chords": ["Em-C-G-D", "Am-F-C-G"],
-          "energy_score": 84,
-          "why": "Minor-to-relative-major shift creates emotional uplift — beta priming begins, contagion onset"
-        },
-        {
-          "bpm": 132,
-          "key": "Gm",
-          "chords": ["Gm-Eb-Bb-F"],
-          "energy_score": 91,
-          "why": "Dorian groove with raised 6th — urgency without aggression, sustained motor activation"
-        }
-      ]
-    }
-  ]
-}
 
-The phase_arc array must have exactly {phase_count} items in show order.
-Each phase must include 3–4 reference_tracks that embody the phase prescription.
-reference_tracks must show range — not 3 profiles with the same chord structure.
-The `why` field must state the neurological or behavioural mechanism specifically — not generic ("good energy") but mechanistic ("raised 6th in Dorian suppresses aggression while sustaining motor activation").
-chords is an array — a track with multiple distinct sections (verse, chorus, drop) gets multiple entries.
-Use the venue type, crowd type, and show type from the evidence package to calibrate language.
-Do NOT use dance floor language for venues that are not night clubs or dance venues —
-use crowd density, bar queue length, table fill rate, standing cluster formation instead.
-Do NOT use "first floor movers" for non-nightclub venues.
-Be specific about BPM numbers, chord structures, frequency ranges — draw from the evidence package.
-"""
+def _load_research_corpus() -> str:
+    global _RESEARCH_CORPUS_CACHE
+    if _RESEARCH_CORPUS_CACHE is not None:
+        return _RESEARCH_CORPUS_CACHE
+    corpus_dir = os.path.join(_BACKEND_DIR, "research")
+    files = sorted(_glob.glob(os.path.join(corpus_dir, "*.md")))
+    parts = []
+    for fp in files:
+        label = os.path.basename(fp)
+        try:
+            with open(fp, encoding="utf-8") as f:
+                text = f.read(2000)
+            parts.append(f"--- {label} ---\n{text}")
+        except Exception:
+            continue
+    _RESEARCH_CORPUS_CACHE = "\n\n".join(parts) if parts else "[no behavioral research files found]"
+    return _RESEARCH_CORPUS_CACHE
 
-# ─── Evidence package → prompt text ──────────────────────────────────────────
+
+def _load_se_pipeline() -> str:
+    global _SE_PIPELINE_CACHE
+    if _SE_PIPELINE_CACHE is not None:
+        return _SE_PIPELINE_CACHE
+    output_dir = os.path.join(_BACKEND_DIR, "output_se")
+    if not os.path.isdir(output_dir):
+        _SE_PIPELINE_CACHE = (
+            "Neuroacoustic prescription database not yet built (output_se/ does not exist). "
+            "Derive best prescription from the evidence package and neuroacoustic research corpus."
+        )
+        return _SE_PIPELINE_CACHE
+    files = _glob.glob(os.path.join(output_dir, "*.json"))
+    if not files:
+        _SE_PIPELINE_CACHE = "output_se/ directory exists but is empty."
+        return _SE_PIPELINE_CACHE
+    parts = [f"=== {os.path.basename(fp)} ===\n{_read_file(fp)}" for fp in sorted(files)]
+    _SE_PIPELINE_CACHE = "\n\n".join(parts)
+    return _SE_PIPELINE_CACHE
+
+
+def _load_research_se_corpus() -> str:
+    global _RESEARCH_SE_CORPUS_CACHE
+    if _RESEARCH_SE_CORPUS_CACHE is not None:
+        return _RESEARCH_SE_CORPUS_CACHE
+    corpus_dir = os.path.join(_BACKEND_DIR, "research_se")
+    files = sorted(_glob.glob(os.path.join(corpus_dir, "*.md")))
+    parts = []
+    for fp in files:
+        label = os.path.basename(fp)
+        try:
+            with open(fp, encoding="utf-8") as f:
+                text = f.read(2000)
+            parts.append(f"--- {label} ---\n{text}")
+        except Exception:
+            continue
+    _RESEARCH_SE_CORPUS_CACHE = "\n\n".join(parts) if parts else "[no neuroacoustic research files found]"
+    return _RESEARCH_SE_CORPUS_CACHE
+
+
+# ─── Helpers ──────────────────────────────────────────────────────────────────
 
 def _json_default(o):
-    """JSON encoder fallback: handles Decimal and datetime from asyncpg rows."""
     if isinstance(o, Decimal):
         return float(o)
     if hasattr(o, "isoformat"):
@@ -130,61 +150,7 @@ def _json_default(o):
     raise TypeError(f"Not serializable: {type(o)}")
 
 
-def _format_evidence(package: EvidencePackage) -> str:
-    se = package.structured_evidence
-    np = package.neuroacoustic_prescription
-
-    passages = (
-        "\n".join(f"  - {p}" for p in package.theory_passages)
-        if package.theory_passages
-        else "  Not available — run evidence sweep first"
-    )
-
-    neuro = (
-        json.dumps(np.model_dump(), indent=2)
-        if np else "Not yet available — SE pipeline not yet built"
-    )
-
-    se_block = (
-        f"Canonical crowd state: {se.canonical_state}\n"
-        f"Mechanism chains: {json.dumps(se.mechanism_chains, indent=2, default=_json_default)}\n"
-        f"Intervention candidates: {json.dumps(se.intervention_candidates, indent=2, default=_json_default)}\n"
-        f"KPI linkages: {', '.join(se.kpi_linkages)}"
-        if se else
-        "Stage 1 pipeline not yet built — canonical state and mechanism chains unavailable"
-    )
-
-    history_block = (
-        json.dumps(package.session_history[-3:], indent=2, default=_json_default)
-        if package.session_history else "No prior sessions"
-    )
-
-    return f"""\
-=== EVIDENCE PACKAGE ===
-
-CURRENT CROWD STATE:
-{json.dumps(package.session_state, indent=2, default=_json_default)}
-
-VENUE BEHAVIORAL PROFILE (M2):
-{json.dumps(package.venue_profile, indent=2, default=_json_default)}
-
-BEHAVIORAL SCIENCE EVIDENCE:
-{se_block}
-
-Theory passages from research corpus:
-{passages}
-
-NEUROACOUSTIC PRESCRIPTION:
-{neuro}
-
-SESSION HISTORY AT THIS VENUE:
-{history_block}"""
-
-
-# ─── Helpers ─────────────────────────────────────────────────────────────────
-
 def _strip_thinking(text: str) -> str:
-    """Remove <think>...</think> blocks (DeepSeek / Qwen thinking mode)."""
     text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
     text = re.sub(r"<think>.*$", "", text, flags=re.DOTALL)
     return text.strip()
@@ -203,8 +169,10 @@ def _extract_json(text: str) -> dict | None:
     return None
 
 
-async def _call_nonstream(client_fn, messages: list, max_tokens: int = 600, thinking: bool = False) -> tuple[str, str, str | None]:
-    """Non-streaming call to one agent. Returns (response_text, reasoning_content, error_message)."""
+async def _call_nonstream(
+    client_fn, messages: list, max_tokens: int = 600, thinking: bool = False
+) -> tuple[str, str, str | None]:
+    """Returns (response_text, reasoning_content, error_message)."""
     ac = client_fn()
     if ac is None:
         return "", "", f"[{client_fn.__name__} unavailable — API key not set]"
@@ -228,39 +196,309 @@ async def _call_nonstream(client_fn, messages: list, max_tokens: int = 600, thin
         return "", "", str(exc)
 
 
+# ─── Evidence package → prompt ────────────────────────────────────────────────
+
+def _format_evidence(package: EvidencePackage) -> str:
+    se = package.structured_evidence
+    np = package.neuroacoustic_prescription
+
+    passages = (
+        "\n".join(f"  - {p}" for p in package.theory_passages)
+        if package.theory_passages
+        else "  Not yet available"
+    )
+    neuro = (
+        json.dumps(np.model_dump(), indent=2)
+        if np else "Not yet available — SE pipeline not yet built"
+    )
+    se_block = (
+        f"Canonical crowd state: {se.canonical_state}\n"
+        f"Mechanism chains: {json.dumps(se.mechanism_chains, indent=2, default=_json_default)}\n"
+        f"Intervention candidates: {json.dumps(se.intervention_candidates, indent=2, default=_json_default)}\n"
+        f"KPI linkages: {', '.join(se.kpi_linkages)}"
+        if se else
+        "Stage 1 pipeline not yet built — canonical state and mechanism chains unavailable"
+    )
+    history_block = (
+        json.dumps(package.session_history[-3:], indent=2, default=_json_default)
+        if package.session_history else "No prior sessions at this venue"
+    )
+    return f"""\
+=== EVIDENCE PACKAGE ===
+
+CURRENT SHOW CONTEXT:
+{json.dumps(package.session_state, indent=2, default=_json_default)}
+
+VENUE BEHAVIORAL PROFILE (M2):
+{json.dumps(package.venue_profile, indent=2, default=_json_default)}
+
+BEHAVIORAL SCIENCE EVIDENCE:
+{se_block}
+
+Theory passages from research corpus:
+{passages}
+
+NEUROACOUSTIC PRESCRIPTION:
+{neuro}
+
+SESSION HISTORY AT THIS VENUE:
+{history_block}"""
+
+
+# ─── System prompts ───────────────────────────────────────────────────────────
+
+_COUNCIL_BASE = """\
+You are part of the Polynovea Show Engineering Council — an AI system that produces \
+actionable, evidence-grounded show plans for live venue operators.
+The output must be specific enough that the performer can walk in with it and run the night \
+without consulting the app again. Use BPM ranges, chord structures, and frequency prescriptions \
+by name. Do not hedge with "consider" or "might".\
+"""
+
+_AGENT1_SYSTEM = _COUNCIL_BASE + """
+
+ROLE — Agent 1: Behavioral KAG (Knowledge-Augmented Generation)
+You query the structured behavioral knowledge graph provided below.
+Given the venue context and session parameters, return:
+
+CANONICAL_STATE: the most likely crowd behavioral state at this venue tonight
+MECHANISM_CHAINS: 2–3 mechanism chains from the knowledge graph most relevant to this context
+INTERVENTION_CANDIDATES: 2–3 specific interventions from the knowledge graph that fit
+KPI_LINKAGES: which KPIs to watch for each intervention (reference KPI IDs where available)
+CONFIDENCE: HIGH / MEDIUM / LOW"""
+
+_AGENT2_SYSTEM = _COUNCIL_BASE + """
+
+ROLE — Agent 2: Behavioral RAG (Retrieval-Augmented Generation)
+You search the behavioral research corpus provided below.
+Extract the 3–5 most relevant verbatim passages that explain:
+  — Why this type of crowd behaves the way it does
+  — What drives dwell time, social contagion, floor activation, or spend at this venue type
+  — Which behavioral mechanisms govern intervention effectiveness here
+
+Quote passages verbatim. Label each with the source filename. Do not summarise — extract."""
+
+_AGENT3_SYSTEM = _COUNCIL_BASE + """
+
+ROLE — Agent 3: Neuroacoustic KAG (Knowledge-Augmented Generation)
+You query the neuroacoustic prescription database provided below.
+Given the venue context and crowd state, return a specific neuroacoustic prescription:
+
+BPM_PRESCRIPTION: exact BPM range per show phase
+CHORD_PRESCRIPTION: chord structures per phase with behavioral rationale
+FREQUENCY_PRESCRIPTION: bass/mid/high emphasis per phase in Hz with dB adjustments
+BRAINWAVE_TARGET: target brainwave state per phase (alpha/beta) with Hz range
+PHRASE_ARCHITECTURE: bar structure and phrase length per phase
+
+If the prescription database is not yet built, derive the best prescription from the evidence package and the corpus."""
+
+_AGENT4_SYSTEM = _COUNCIL_BASE + """
+
+ROLE — Agent 4: Neuroacoustic RAG (Retrieval-Augmented Generation)
+You search the neuroacoustic and music psychology research corpus provided below.
+Extract the 3–5 most relevant verbatim passages explaining the WHY behind the prescription:
+  — Why specific BPM ranges affect this crowd's brainwave state
+  — Why specific chord structures produce specific behavioral responses
+  — Why specific frequency emphases affect physical engagement
+  — The neurological mechanism — not just that it works, but how
+
+Quote passages verbatim. Label each with the source filename."""
+
+_AGENT5_SYSTEM = _COUNCIL_BASE + """
+
+ROLE — Agent 5: Integrator
+You receive Stage 1 findings from 4 parallel agents and synthesise them into a unified show picture.
+Do NOT produce a show plan yet. Produce coherent integration:
+
+CROWD_PICTURE: synthesised portrait of tonight's crowd behavioral baseline
+DOMINANT_DRIVERS: the 2–3 behavioral mechanisms that govern tonight's arc
+NEUROACOUSTIC_CHAIN: the BPM → chord → frequency → brainwave prescription chain for the full night
+PRIOR_SESSION_PATTERN: what worked and what did not at this venue (from session history)
+RISK_FACTORS: anything in Stage 1 that suggests deviation from defaults
+POSITION: one sentence — the single most important insight for tonight's plan
+CONFIDENCE: HIGH / MEDIUM / LOW"""
+
+_PRESCRIBER_SYSTEM = """\
+You are Agent 6 of the Polynovea Show Engineering Council — the Prescriber.
+You receive an integrated show picture from Agent 5 and produce the complete show plan.
+
+Output ONLY a JSON object in this exact shape — no other text before or after:
+
+{
+  "council_brief": {
+    "state": "one sentence — what the room is doing tonight",
+    "mechanism": "one or two sentences — behavioral science reasoning",
+    "lever": "the specific controllable variable",
+    "action": "the exact instruction the operator executes — cite BPM, chord, frequency by name",
+    "signal": "what to watch for in the next 5–10 minutes to confirm it worked"
+  },
+  "phase_arc": [
+    {
+      "phase_name": "Opening",
+      "bpm": "105–112",
+      "chord": "I–IV–V",
+      "key": "F major — Ionian",
+      "bass": "55–70Hz · nominal",
+      "watch_for": ["...", "...", "..."],
+      "action_line": "Hold energy low. Let room fill naturally.",
+      "reference_tracks": [
+        {
+          "bpm": 108,
+          "key": "F",
+          "chords": ["F-Bb-C"],
+          "energy_score": 55,
+          "why": "Specific neurological or behavioural mechanism — not generic"
+        }
+      ]
+    }
+  ]
+}
+
+Rules:
+- phase_arc must have exactly {phase_count} items in show order
+- Each phase must include 3–4 reference_tracks showing range — not 3 identical chord structures
+- The `why` field must state the specific neural or behavioral mechanism
+- chords is an array — multi-section tracks get multiple entries
+- Do NOT use dance floor language for non-nightclub venues
+- cite BPM numbers, chord structures, frequency ranges from the integrated evidence
+"""
+
+
+# ─── Stage 1 agents ───────────────────────────────────────────────────────────
+
+async def _agent1(evidence_text: str) -> tuple[str, str, str | None]:
+    pipeline_data = _load_behavioral_pipeline()
+    messages = [
+        {"role": "system", "content": _AGENT1_SYSTEM},
+        {"role": "user",   "content": f"BEHAVIORAL KNOWLEDGE GRAPH:\n{pipeline_data}\n\n{evidence_text}"},
+    ]
+    return await _call_nonstream(get_nemotron_client, messages, max_tokens=700, thinking=True)
+
+
+async def _agent2(evidence_text: str) -> tuple[str, str, str | None]:
+    corpus = _load_research_corpus()
+    messages = [
+        {"role": "system", "content": _AGENT2_SYSTEM},
+        {"role": "user",   "content": f"BEHAVIORAL RESEARCH CORPUS:\n{corpus}\n\n{evidence_text}"},
+    ]
+    return await _call_nonstream(get_llama_client, messages, max_tokens=800)
+
+
+async def _agent3(evidence_text: str) -> tuple[str, str, str | None]:
+    se_data = _load_se_pipeline()
+    messages = [
+        {"role": "system", "content": _AGENT3_SYSTEM},
+        {"role": "user",   "content": f"NEUROACOUSTIC PRESCRIPTION DATABASE:\n{se_data}\n\n{evidence_text}"},
+    ]
+    return await _call_nonstream(get_deepseek_r1_client, messages, max_tokens=800, thinking=True)
+
+
+async def _agent4(evidence_text: str) -> tuple[str, str, str | None]:
+    corpus = _load_research_se_corpus()
+    messages = [
+        {"role": "system", "content": _AGENT4_SYSTEM},
+        {"role": "user",   "content": f"NEUROACOUSTIC RESEARCH CORPUS:\n{corpus}\n\n{evidence_text}"},
+    ]
+    return await _call_nonstream(get_qwen_client, messages, max_tokens=800)
+
+
+# ─── Stage 2 agents ───────────────────────────────────────────────────────────
+
+async def _agent5(evidence_text: str, a1: str, a2: str, a3: str, a4: str) -> tuple[str, str, str | None]:
+    stage1_block = f"""\
+AGENT 1 — BEHAVIORAL KAG:
+{a1 or '[Agent 1 returned no results]'}
+
+AGENT 2 — BEHAVIORAL THEORY PASSAGES:
+{a2 or '[Agent 2 returned no results]'}
+
+AGENT 3 — NEUROACOUSTIC PRESCRIPTION:
+{a3 or '[Agent 3 returned no results]'}
+
+AGENT 4 — NEUROACOUSTIC THEORY PASSAGES:
+{a4 or '[Agent 4 returned no results]'}"""
+
+    messages = [
+        {"role": "system", "content": _AGENT5_SYSTEM},
+        {"role": "user",   "content": f"{evidence_text}\n\n---\n\nSTAGE 1 FINDINGS:\n{stage1_block}"},
+    ]
+    return await _call_nonstream(get_deepseek_pro_client, messages, max_tokens=1000, thinking=True)
+
+
+async def _agent6_stream(
+    evidence_text: str,
+    integrated_picture: str,
+    phase_count: int,
+    collector: dict,
+) -> AsyncGenerator[str, None]:
+    """Agent 6 — Mistral Large: streams the final show plan JSON."""
+    ac = get_mistral_client()
+    if ac is None:
+        # Fallback to Nemotron if Mistral key not set
+        ac = get_nemotron_client()
+    if ac is None:
+        yield "[Prescriber unavailable — NVIDIA_API_KEY_MISTRAL_LARGE and NVIDIA_API_KEY_NEMOTRON_120B not set]"
+        return
+
+    sys_prompt = _PRESCRIBER_SYSTEM.replace("{phase_count}", str(phase_count))
+    user_prompt = f"""\
+{evidence_text}
+
+---
+
+AGENT 5 — INTEGRATED SHOW PICTURE:
+{integrated_picture}
+
+Produce the complete show plan JSON now."""
+
+    try:
+        stream = await ac.client.chat.completions.create(
+            model=ac.model,
+            messages=[
+                {"role": "system", "content": sys_prompt},
+                {"role": "user",   "content": user_prompt},
+            ],
+            temperature=0.25,
+            max_tokens=4096,
+            stream=True,
+        )
+        async for chunk in stream:
+            if not chunk.choices:
+                continue
+            delta = chunk.choices[0].delta
+            text = getattr(delta, "content", None) or ""
+            if text:
+                collector["content"] += text
+                yield text
+    except Exception as exc:
+        yield f"\n\n[Prescriber error: {exc}]"
+
+
+# ─── Supabase logging ─────────────────────────────────────────────────────────
+
 def _extract_turn_fields(turn_label: str, text: str) -> dict:
-    fields = {}
+    fields: dict = {}
     lines = text.split("\n")
 
     def find(prefix: str) -> str | None:
         for line in lines:
             stripped = line.strip()
             if stripped.upper().startswith(prefix.upper() + ":"):
-                return stripped[len(prefix)+1:].strip()
+                return stripped[len(prefix) + 1:].strip()
         return None
 
-    if turn_label == "r1_propose":
-        fields["extracted_position"]   = find("POSITION")
+    if turn_label in ("behavioral_kag", "neuro_kag", "integration"):
+        fields["extracted_position"]   = find("POSITION") or find("CANONICAL_STATE")
         fields["extracted_confidence"] = find("CONFIDENCE")
-    elif turn_label == "r2_challenge":
-        fields["extracted_challenge"]  = find("CHALLENGE")
-        fields["extracted_change"]     = find("CHANGE_FROM_R1")
-    elif turn_label == "synthesis":
-        # First try to load as JSON to see if we can get fields
+    elif turn_label == "prescription":
         parsed = _extract_json(text)
         if parsed and "council_brief" in parsed and parsed["council_brief"]:
             cb = parsed["council_brief"]
-            fields["extracted_state"]      = cb.get("state")
-            fields["extracted_mechanism"]  = cb.get("mechanism")
-            fields["extracted_lever"]      = cb.get("lever")
-            fields["extracted_action"]     = cb.get("action")
-            fields["extracted_signal"]     = cb.get("signal")
-        else:
-            fields["extracted_state"]      = find("State")
-            fields["extracted_mechanism"]  = find("Mechanism")
-            fields["extracted_lever"]      = find("Lever")
-            fields["extracted_action"]     = find("Action")
-            fields["extracted_signal"]     = find("Signal")
+            fields["extracted_state"]     = cb.get("state")
+            fields["extracted_mechanism"] = cb.get("mechanism")
+            fields["extracted_lever"]     = cb.get("lever")
+            fields["extracted_action"]    = cb.get("action")
+            fields["extracted_signal"]    = cb.get("signal")
     return fields
 
 
@@ -269,7 +507,7 @@ async def _log_turn(
     venue_id: int,
     show_date: str,
     turn_index: int,
-    turn_label: str,      # "r1_propose" | "r2_challenge" | "synthesis"
+    turn_label: str,
     model_id: str,
     model_alias: str,
     system_prompt: str,
@@ -284,23 +522,22 @@ async def _log_turn(
     if sb is None:
         return
     try:
-        # Extract structured fields from raw_response based on turn_label
         extracted = _extract_turn_fields(turn_label, raw_response)
         sb.table("m3_council_turns").insert({
-            "run_id":              run_id,
-            "venue_id":            venue_id,
-            "show_date":           show_date,
-            "turn_index":          turn_index,
-            "turn_label":          turn_label,
-            "model_id":            model_id,
-            "model_alias":         model_alias,
-            "system_prompt":       system_prompt,
-            "user_prompt":         user_prompt,
-            "raw_response":        raw_response,
-            "reasoning_content":   reasoning_content,
-            "latency_ms":          latency_ms,
-            "errored":             errored,
-            "error_message":       error_message,
+            "run_id":            run_id,
+            "venue_id":          venue_id,
+            "show_date":         show_date,
+            "turn_index":        turn_index,
+            "turn_label":        turn_label,
+            "model_id":          model_id,
+            "model_alias":       model_alias,
+            "system_prompt":     system_prompt,
+            "user_prompt":       user_prompt[:8000],   # cap to avoid Supabase row size limits
+            "raw_response":      raw_response,
+            "reasoning_content": reasoning_content,
+            "latency_ms":        latency_ms,
+            "errored":           errored,
+            "error_message":     error_message,
             **extracted,
         }).execute()
     except Exception as exc:
@@ -308,24 +545,12 @@ async def _log_turn(
 
 
 async def _log_run_start(
-    venue_id: int,
-    venue_name: str,
-    area: str | None,
-    city: str | None,
-    primary_type: str | None,
-    cascade_types: list[str],
-    show_date: str,
-    start_time: str | None,
-    end_time: str | None,
-    phase_count: int,
-    crowd_size: str | None,
-    crowd_type: str | None,
-    show_type: str | None,
-    notes: str | None,
-    venue_profile: dict,
-    mode: str,
+    venue_id: int, venue_name: str, area: str | None, city: str | None,
+    primary_type: str | None, cascade_types: list[str], show_date: str,
+    start_time: str | None, end_time: str | None, phase_count: int,
+    crowd_size: str | None, crowd_type: str | None, show_type: str | None,
+    notes: str | None, venue_profile: dict, mode: str,
 ) -> int | None:
-    """Creates the run row. Returns run_id or None if Supabase unavailable."""
     sb = get_supabase()
     if sb is None:
         return None
@@ -356,11 +581,7 @@ async def _log_run_start(
 
 
 async def _log_run_complete(
-    run_id: int,
-    final_output: str,
-    models_errored: list[str],
-    total_latency_ms: int,
-    status: str = "complete",
+    run_id: int, final_output: str, models_errored: list[str], total_latency_ms: int, status: str = "complete",
 ) -> None:
     sb = get_supabase()
     if sb is None:
@@ -376,119 +597,6 @@ async def _log_run_complete(
         print(f"[supabase] _log_run_complete failed: {exc}")
 
 
-# ─── R1 instruction ───────────────────────────────────────────────────────────
-
-_R1_INSTRUCTION = """
-
-Based on the evidence package above, produce a 5-part suggestion:
-
-POSITION: [one sentence — your core recommended action]
-State: [what the room is doing right now]
-Mechanism: [the behavioral science WHY]
-Lever: [which variable — music / volume / lighting / staff / layout]
-Action: [specific instruction — include BPM, chord structure, frequency if available]
-Signal: [what to watch for in 5–10 min to confirm it worked]
-CONFIDENCE: [HIGH / MEDIUM / LOW]"""
-
-
-async def _round1(evidence_text: str) -> tuple[str, str, str | None]:
-    """R1: Nemotron proposes a 5-part suggestion from the evidence."""
-    messages = [
-        {"role": "system", "content": _COUNCIL_SYSTEM + _R1_INSTRUCTION},
-        {"role": "user",   "content": evidence_text},
-    ]
-    return await _call_nonstream(get_nemotron_client, messages, max_tokens=500, thinking=True)
-
-
-# ─── R2 instruction ───────────────────────────────────────────────────────────
-
-def _r2_user_message(r1_response: str, evidence_text: str) -> str:
-    return f"""\
-The evidence package is above. Agent R1 (Nemotron) proposed this suggestion:
-
-R1 PROPOSAL:
-{r1_response}
-
-Your task: challenge this proposal. Consider:
-- Is R1 using the right lever? Would a different variable be more effective right now?
-- Is the BPM / chord / frequency prescription correct for this crowd state?
-- Is the crowd state diagnosis accurate, or is R1 missing something?
-
-Respond:
-CHALLENGE: [what R1 got wrong or missed]
-ALTERNATIVE_LEVER: [your preferred lever, if different]
-REFINED_ACTION: [your alternative or refined specific instruction]
-AGREE_ON: [what R1 got right that should be kept]
-CHANGE_FROM_R1: [MAJOR / MINOR / NONE]"""
-
-
-async def _round2(r1_response: str, evidence_text: str) -> tuple[str, str, str | None]:
-    """R2: DeepSeek challenges R1's proposal."""
-    messages = [
-        {"role": "system", "content": _COUNCIL_SYSTEM},
-        {"role": "user",   "content": evidence_text},
-        {"role": "user",   "content": _r2_user_message(r1_response, evidence_text)},
-    ]
-    return await _call_nonstream(get_deepseek_r1_client, messages, max_tokens=400, thinking=True)
-
-
-# ─── R3 synthesis (streamed) ─────────────────────────────────────────────────
-
-def _synthesis_user_message(evidence_text: str, r1: str, r2: str) -> str:
-    return f"""\
-{evidence_text}
-
----
-
-AGENT R1 PROPOSAL (Nemotron):
-{r1}
-
-AGENT R2 CHALLENGE (DeepSeek):
-{r2}
-
-Synthesise the single best 5-part operator suggestion now. Resolve any tension between R1 and R2. \
-Prefer specificity — cite BPM, chord structure, frequency by name when available in the evidence."""
-
-
-async def _stream_synthesis(
-    evidence_text: str, r1: str, r2: str, phase_count: int, collector: dict
-) -> AsyncGenerator[str, None]:
-    """Stream the Nemotron synthesis as the final output."""
-    ac = get_nemotron_client()
-    if ac is None:
-        yield "[Council synthesis unavailable — NVIDIA_API_KEY_NEMOTRON_120B not set]"
-        return
-    try:
-        sys_prompt = _SYNTHESIS_SYSTEM.replace("{phase_count}", str(phase_count))
-        stream = await ac.client.chat.completions.create(
-            model=ac.model,
-            messages=[
-                {"role": "system", "content": sys_prompt},
-                {"role": "user",   "content": _synthesis_user_message(evidence_text, r1, r2)},
-            ],
-            temperature=0.25,
-            max_tokens=512,
-            stream=True,
-            extra_body={
-                "chat_template_kwargs": {"enable_thinking": True},
-                "reasoning_budget": 4096,
-            },
-        )
-        async for chunk in stream:
-            if not chunk.choices:
-                continue
-            delta = chunk.choices[0].delta
-            text = getattr(delta, "content", None) or ""
-            reasoning = getattr(delta, "reasoning_content", None) or ""
-            if text:
-                collector["content"] += text
-                yield text
-            if reasoning:
-                collector["reasoning"] += reasoning
-    except Exception as exc:
-        yield f"\n\n[Synthesis error: {exc}]"
-
-
 # ─── Public interface ─────────────────────────────────────────────────────────
 
 async def run_council(
@@ -496,23 +604,19 @@ async def run_council(
     log_context: dict | None = None,
 ) -> AsyncGenerator[str, None]:
     """
-    Stage 2: receives assembled evidence package, runs R1→R2→synthesis debate.
-
-    Yields streamed text. Protocol:
-      1. COUNCIL_DELIBERATING sentinel
-      2. [COUNCIL:PHASE:r1:{confidence}]{position}\n  — after Round 1 completes
-      3. [COUNCIL:PHASE:r2:{change}]{challenge}\n     — after Round 2 completes
-      4. COUNCIL_SYNTHESIS sentinel
-      5. Final 5-part suggestion chunks streamed live from Nemotron
+    Full 7-agent council run. Yields streamed text with sentinel protocol:
+      1. COUNCIL_DELIBERATING
+      2. [COUNCIL:PHASE:r1:{confidence}]{integration_summary}  — Agent 5 complete
+      3. COUNCIL_SYNTHESIS
+      4. Show plan JSON chunks streamed from Agent 6 (Mistral)
     """
     yield COUNCIL_DELIBERATING
 
-    run_id = None
-    models_errored = []
     t_start = time.time()
+    run_id = None
+    models_errored: list[str] = []
 
     if log_context:
-        # 1. Log Run Start
         run_id = await _log_run_start(
             venue_id=log_context.get("venue_id"),
             venue_name=log_context.get("venue_name"),
@@ -534,18 +638,42 @@ async def run_council(
 
     evidence_text = _format_evidence(package)
 
-    # --- R1 Proposer ---
-    t0 = time.time()
-    r1, r1_reasoning, r1_error = await _round1(evidence_text)
-    r1_latency = int((time.time() - t0) * 1000)
+    # ── Stage 1: Agents 1–4 in parallel ──────────────────────────────────────
+    t1 = time.time()
+    results = await asyncio.gather(
+        _agent1(evidence_text),
+        _agent2(evidence_text),
+        _agent3(evidence_text),
+        _agent4(evidence_text),
+        return_exceptions=True,
+    )
+    stage1_ms = int((time.time() - t1) * 1000)
 
-    if r1_error:
-        models_errored.append("r1_propose")
+    def _unpack(r, label: str) -> tuple[str, str, str | None]:
+        if isinstance(r, Exception):
+            models_errored.append(label)
+            return "", "", str(r)
+        txt, reasoning, err = r
+        if err:
+            models_errored.append(label)
+        return txt, reasoning, err
 
-    # Extract position line for the phase sentinel
+    a1_txt, a1_rsn, a1_err = _unpack(results[0], "behavioral_kag")
+    a2_txt, a2_rsn, a2_err = _unpack(results[1], "behavioral_rag")
+    a3_txt, a3_rsn, a3_err = _unpack(results[2], "neuro_kag")
+    a4_txt, a4_rsn, a4_err = _unpack(results[3], "neuro_rag")
+
+    # ── Stage 2: Agent 5 — Integrator ────────────────────────────────────────
+    t5 = time.time()
+    a5_txt, a5_rsn, a5_err = await _agent5(evidence_text, a1_txt, a2_txt, a3_txt, a4_txt)
+    a5_ms = int((time.time() - t5) * 1000)
+    if a5_err:
+        models_errored.append("integration")
+
+    # Emit integration summary using the r1 sentinel so the frontend transitions stages
     position = ""
     confidence = "MEDIUM"
-    for line in r1.split("\n"):
+    for line in a5_txt.split("\n"):
         stripped = line.strip()
         if stripped.upper().startswith("POSITION:"):
             position = stripped[9:].strip()
@@ -554,121 +682,74 @@ async def run_council(
     if position:
         yield f"[COUNCIL:PHASE:r1:{confidence}]{position}\n"
 
-    if log_context and run_id:
-        ac = get_nemotron_client()
-        await _log_turn(
-            run_id=run_id,
-            venue_id=log_context["venue_id"],
-            show_date=log_context["show_date"],
-            turn_index=0,
-            turn_label="r1_propose",
-            model_id=ac.model if ac else "nvidia/nemotron-3-super-120b-a12b",
-            model_alias=ac.name if ac else "nemotron",
-            system_prompt=_COUNCIL_SYSTEM + _R1_INSTRUCTION,
-            user_prompt=evidence_text,
-            raw_response=r1 if not r1_error else f"[error: {r1_error}]",
-            reasoning_content=r1_reasoning,
-            latency_ms=r1_latency,
-            errored=r1_error is not None,
-            error_message=r1_error,
-        )
-
-    # --- R2 Challenger ---
-    t0 = time.time()
-    r2, r2_reasoning, r2_error = await _round2(r1, evidence_text)
-    r2_latency = int((time.time() - t0) * 1000)
-
-    if r2_error:
-        models_errored.append("r2_challenge")
-
-    # Extract change indicator for the phase sentinel
-    change = "MINOR"
-    challenge = ""
-    for line in r2.split("\n"):
-        stripped = line.strip()
-        if stripped.upper().startswith("CHANGE_FROM_R1:"):
-            change = stripped[15:].strip()
-        elif stripped.upper().startswith("CHALLENGE:") and not challenge:
-            challenge = stripped[10:].strip()
-    if challenge:
-        yield f"[COUNCIL:PHASE:r2:{change}]{challenge}\n"
-
-    if log_context and run_id:
-        ac = get_deepseek_r1_client()
-        user_prompt = evidence_text + "\n\n" + _r2_user_message(r1, evidence_text)
-        await _log_turn(
-            run_id=run_id,
-            venue_id=log_context["venue_id"],
-            show_date=log_context["show_date"],
-            turn_index=1,
-            turn_label="r2_challenge",
-            model_id=ac.model if ac else "deepseek-ai/deepseek-v4-flash",
-            model_alias=ac.name if ac else "deepseek_flash",
-            system_prompt=_COUNCIL_SYSTEM,
-            user_prompt=user_prompt,
-            raw_response=r2 if not r2_error else f"[error: {r2_error}]",
-            reasoning_content=r2_reasoning,
-            latency_ms=r2_latency,
-            errored=r2_error is not None,
-            error_message=r2_error,
-        )
-
     yield f"{COUNCIL_SYNTHESIS}\n"
 
-    # --- R3 Synthesiser (streamed) ---
+    # ── Stage 2: Agent 6 — Prescriber (streamed) ─────────────────────────────
     phase_count = package.session_state.get("phase_count", 4)
-    t0 = time.time()
-    collector = {"content": "", "reasoning": ""}
-    synthesis_error = None
+    t6 = time.time()
+    collector: dict = {"content": "", "reasoning": ""}
+    synth_error: str | None = None
 
     try:
-        async for chunk in _stream_synthesis(evidence_text, r1, r2, phase_count, collector):
+        async for chunk in _agent6_stream(evidence_text, a5_txt, phase_count, collector):
             yield chunk
     except Exception as exc:
-        synthesis_error = str(exc)
-        yield f"\n\n[Synthesis error: {exc}]"
+        synth_error = str(exc)
+        yield f"\n\n[Prescriber error: {exc}]"
 
-    synth_latency = int((time.time() - t0) * 1000)
+    a6_ms = int((time.time() - t6) * 1000)
+    if synth_error or "[Prescriber error:" in collector["content"]:
+        models_errored.append("prescription")
 
-    # Check if synthesis stream failed/errored internally
-    if "[Synthesis error:" in collector["content"] and not synthesis_error:
-        synthesis_error = collector["content"]
+    total_ms = int((time.time() - t_start) * 1000)
 
-    if synthesis_error:
-        models_errored.append("synthesis")
-
+    # ── Supabase logging (fire-and-forget) ───────────────────────────────────
     if log_context and run_id:
-        ac = get_nemotron_client()
-        sys_prompt = _SYNTHESIS_SYSTEM.replace("{phase_count}", str(phase_count))
-        user_prompt = _synthesis_user_message(evidence_text, r1, r2)
-        await _log_turn(
-            run_id=run_id,
-            venue_id=log_context["venue_id"],
-            show_date=log_context["show_date"],
-            turn_index=2,
-            turn_label="synthesis",
-            model_id=ac.model if ac else "nvidia/nemotron-3-super-120b-a12b",
-            model_alias=ac.name if ac else "nemotron",
-            system_prompt=sys_prompt,
-            user_prompt=user_prompt,
-            raw_response=collector["content"],
-            reasoning_content=collector["reasoning"],
-            latency_ms=synth_latency,
-            errored=synthesis_error is not None,
-            error_message=synthesis_error,
+        venue_id   = log_context["venue_id"]
+        show_date  = log_context["show_date"]
+        a1c = get_nemotron_client()
+        a2c = get_llama_client()
+        a3c = get_deepseek_r1_client()
+        a4c = get_qwen_client()
+        a5c = get_deepseek_pro_client()
+        a6c = get_mistral_client() or get_nemotron_client()
+
+        await asyncio.gather(
+            _log_turn(run_id, venue_id, show_date, 0, "behavioral_kag",
+                      a1c.model if a1c else "nemotron", a1c.name if a1c else "nemotron",
+                      _AGENT1_SYSTEM, evidence_text,
+                      a1_txt or f"[error: {a1_err}]", a1_rsn, stage1_ms,
+                      a1_err is not None, a1_err),
+            _log_turn(run_id, venue_id, show_date, 1, "behavioral_rag",
+                      a2c.model if a2c else "llama_70b", a2c.name if a2c else "llama_70b",
+                      _AGENT2_SYSTEM, evidence_text,
+                      a2_txt or f"[error: {a2_err}]", a2_rsn, stage1_ms,
+                      a2_err is not None, a2_err),
+            _log_turn(run_id, venue_id, show_date, 2, "neuro_kag",
+                      a3c.model if a3c else "deepseek_flash", a3c.name if a3c else "deepseek_flash",
+                      _AGENT3_SYSTEM, evidence_text,
+                      a3_txt or f"[error: {a3_err}]", a3_rsn, stage1_ms,
+                      a3_err is not None, a3_err),
+            _log_turn(run_id, venue_id, show_date, 3, "neuro_rag",
+                      a4c.model if a4c else "qwen_122b", a4c.name if a4c else "qwen_122b",
+                      _AGENT4_SYSTEM, evidence_text,
+                      a4_txt or f"[error: {a4_err}]", a4_rsn, stage1_ms,
+                      a4_err is not None, a4_err),
+            _log_turn(run_id, venue_id, show_date, 4, "integration",
+                      a5c.model if a5c else "deepseek_pro", a5c.name if a5c else "deepseek_pro",
+                      _AGENT5_SYSTEM, evidence_text,
+                      a5_txt or f"[error: {a5_err}]", a5_rsn, a5_ms,
+                      a5_err is not None, a5_err),
+            _log_turn(run_id, venue_id, show_date, 5, "prescription",
+                      a6c.model if a6c else "mistral_large", a6c.name if a6c else "mistral_large",
+                      _PRESCRIBER_SYSTEM, evidence_text,
+                      collector["content"], collector["reasoning"], a6_ms,
+                      synth_error is not None, synth_error),
+            return_exceptions=True,
         )
 
-    total_latency_ms = int((time.time() - t_start) * 1000)
-
-    if log_context and run_id:
         status = "error" if models_errored else "complete"
-        await _log_run_complete(
-            run_id=run_id,
-            final_output=collector["content"],
-            models_errored=models_errored,
-            total_latency_ms=total_latency_ms,
-            status=status,
-        )
+        await _log_run_complete(run_id, collector["content"], models_errored, total_ms, status)
 
 
 async def run_council_fast(
@@ -676,12 +757,11 @@ async def run_council_fast(
     log_context: dict | None = None,
 ) -> str:
     """
-    Single-model fast path — Nemotron only, no R2 debate.
-    Used when mode='fast'. Returns full 5-part suggestion as string.
+    Fast path — Nemotron only, no multi-agent debate.
+    Used when mode='fast'. Returns the full plan as a string.
     """
     t_start = time.time()
     run_id = None
-    models_errored = []
 
     if log_context:
         run_id = await _log_run_start(
@@ -700,84 +780,66 @@ async def run_council_fast(
             show_type=log_context.get("show_type"),
             notes=log_context.get("notes"),
             venue_profile=log_context.get("venue_profile") or {},
-            mode=log_context.get("mode", "fast"),
+            mode="fast",
         )
 
     ac = get_nemotron_client()
     if ac is None:
-        err_msg = "[Council fast mode unavailable — NVIDIA_API_KEY_NEMOTRON_120B not set]"
+        err = "[Fast mode unavailable — NVIDIA_API_KEY_NEMOTRON_120B not set]"
         if log_context and run_id:
-            await _log_run_complete(
-                run_id=run_id,
-                final_output="",
-                models_errored=["synthesis"],
-                total_latency_ms=int((time.time() - t_start) * 1000),
-                status="error",
-            )
-        return err_msg
+            await _log_run_complete(run_id, "", ["prescription"],
+                                    int((time.time() - t_start) * 1000), "error")
+        return err
 
     phase_count = package.session_state.get("phase_count", 4)
-    sys_prompt = _SYNTHESIS_SYSTEM.replace("{phase_count}", str(phase_count))
-
+    sys_prompt  = _PRESCRIBER_SYSTEM.replace("{phase_count}", str(phase_count))
     evidence_text = _format_evidence(package)
-    messages = [
-        {"role": "system", "content": sys_prompt},
-        {"role": "user",   "content": evidence_text + "\n\nGenerate the 5-part suggestion now. Be direct and specific."},
-    ]
 
     t0 = time.time()
     try:
         resp = await ac.client.chat.completions.create(
             model=ac.model,
-            messages=messages,
+            messages=[
+                {"role": "system", "content": sys_prompt},
+                {"role": "user",   "content": evidence_text + "\n\nGenerate the show plan now."},
+            ],
             temperature=0.28,
-            max_tokens=512,
+            max_tokens=4096,
             extra_body={
                 "chat_template_kwargs": {"enable_thinking": True},
                 "reasoning_budget": 4096,
             },
         )
-        raw = resp.choices[0].message.content or ""
+        raw      = resp.choices[0].message.content or ""
         reasoning = getattr(resp.choices[0].message, "reasoning_content", "") or ""
-        final_output = _strip_thinking(raw)
-        errored = False
-        error_message = None
+        output   = _strip_thinking(raw)
+        errored  = False
+        error_msg: str | None = None
     except Exception as exc:
-        final_output = ""
+        output    = ""
         reasoning = ""
-        errored = True
-        error_message = str(exc)
-        models_errored.append("synthesis")
+        errored   = True
+        error_msg = str(exc)
 
     latency_ms = int((time.time() - t0) * 1000)
 
     if log_context and run_id:
         await _log_turn(
-            run_id=run_id,
-            venue_id=log_context["venue_id"],
-            show_date=log_context["show_date"],
-            turn_index=0,
-            turn_label="synthesis",
-            model_id=ac.model,
-            model_alias=ac.name,
+            run_id=run_id, venue_id=log_context["venue_id"], show_date=log_context["show_date"],
+            turn_index=0, turn_label="prescription",
+            model_id=ac.model, model_alias=ac.name,
             system_prompt=sys_prompt,
-            user_prompt=evidence_text + "\n\nGenerate the 5-part suggestion now. Be direct and specific.",
-            raw_response=final_output if not errored else f"[Council fast error: {error_message}]",
-            reasoning_content=reasoning,
-            latency_ms=latency_ms,
-            errored=errored,
-            error_message=error_message,
+            user_prompt=evidence_text + "\n\nGenerate the show plan now.",
+            raw_response=output if not errored else f"[error: {error_msg}]",
+            reasoning_content=reasoning, latency_ms=latency_ms,
+            errored=errored, error_message=error_msg,
         )
-
-        status = "error" if models_errored else "complete"
         await _log_run_complete(
             run_id=run_id,
-            final_output=final_output if not errored else f"[Council fast error: {error_message}]",
-            models_errored=models_errored,
+            final_output=output if not errored else "",
+            models_errored=["prescription"] if errored else [],
             total_latency_ms=int((time.time() - t_start) * 1000),
-            status=status,
+            status="error" if errored else "complete",
         )
 
-    if errored:
-        return f"[Council fast error: {error_message}]"
-    return final_output
+    return output if not errored else f"[Fast mode error: {error_msg}]"

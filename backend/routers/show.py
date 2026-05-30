@@ -142,10 +142,10 @@ async def generate_show_brief(body: ShowBriefRequest):
                         })
 
                     elif COUNCIL_SYNTHESIS in chunk:
-                        yield _sse({"type": "status", "msg": "Synthesising final prescription…"})
+                        yield _sse({"type": "synthesis_start", "text": "Prescribing show plan…"})
 
                     elif COUNCIL_DELIBERATING in chunk:
-                        yield _sse({"type": "status", "msg": "R1 (Nemotron) reading evidence package…"})
+                        yield _sse({"type": "status", "msg": "Stage 1 — 4 agents reading evidence in parallel…"})
 
                     elif chunk and not chunk.startswith("[COUNCIL:"):
                         yield _sse({"type": "chunk", "text": chunk})
