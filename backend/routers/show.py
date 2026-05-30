@@ -1,17 +1,26 @@
 """
-POST /api/show/brief     — generate show engineering brief
+POST /api/show/brief     — generate show engineering brief (SSE stream)
 GET  /api/show/history/{venue_id} — prior show outcomes for a venue
 POST /api/show/outcome   — log what happened after a show
 """
-from datetime import date, datetime, timezone
+import json as _json
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 
 from database import fetch_m2_venue_context, get_m3_pool
-from models import EvidencePackage, ShowBriefRequest, ShowBriefResponse, ShowOutcomeRequest
-from routers.council import run_council, run_council_fast, _extract_json
+from models import EvidencePackage, ShowBriefRequest, ShowOutcomeRequest
+from routers.council import (
+    COUNCIL_DELIBERATING, COUNCIL_SYNTHESIS,
+    run_council, run_council_fast, _extract_json,
+)
 
 router = APIRouter()
+
+
+def _sse(event: dict) -> str:
+    return "data: " + _json.dumps(event) + "\n\n"
 
 
 async def _assemble_show_evidence(
@@ -54,26 +63,31 @@ async def _assemble_show_evidence(
     )
 
 
-@router.post("/brief", response_model=ShowBriefResponse)
+@router.post("/brief")
 async def generate_show_brief(body: ShowBriefRequest):
+    """
+    Streams Council deliberation as Server-Sent Events so the frontend can
+    render live progress. Event types:
+      status   — plain-text status line (model starting, waiting, etc.)
+      r1       — R1 position + confidence after Round 1 completes
+      r2       — R2 challenge + change level after Round 2 completes
+      chunk    — raw synthesis text chunk as it streams
+      complete — final parsed output (council_brief, phase_arc, raw_brief)
+      error    — something went wrong
+    """
     pool = get_m3_pool()
-
     m2_context = await fetch_m2_venue_context(body.venue_id)
 
-    # Prior show sessions — includes mode and timestamps for session history
     async with pool.acquire() as conn:
         history = await conn.fetch(
             """
             SELECT session_number, opened_at, closed_at, session_mode
-            FROM m3_sessions
-            WHERE venue_id = $1
-            ORDER BY opened_at DESC
-            LIMIT 5
+            FROM m3_sessions WHERE venue_id = $1
+            ORDER BY opened_at DESC LIMIT 5
             """,
             body.venue_id,
         )
     prior_shows = [dict(r) for r in history]
-
     package = await _assemble_show_evidence(body, m2_context, prior_shows)
 
     log_context = {
@@ -95,68 +109,81 @@ async def generate_show_brief(body: ShowBriefRequest):
         "mode":          body.mode,
     }
 
-    if body.mode == "fast":
-        brief_text = await run_council_fast(package, log_context)
-    else:
-        chunks: list[str] = []
-        async for chunk in run_council(package, log_context):
-            chunks.append(chunk)
-        brief_text = "".join(chunks)
-
-    # Parse JSON out of synthesis stream
-    parsed = _extract_json(brief_text)
-    council_brief = None
-    phase_arc = []
-    if parsed:
+    async def _stream():
+        all_chunks: list[str] = []
         try:
-            if "council_brief" in parsed and parsed["council_brief"] is not None:
-                cb = parsed["council_brief"]
-                from models import CouncilBrief
-                council_brief = CouncilBrief(
-                    state=cb.get("state", ""),
-                    mechanism=cb.get("mechanism", ""),
-                    lever=cb.get("lever", ""),
-                    action=cb.get("action", ""),
-                    signal=cb.get("signal", "")
-                )
-            if "phase_arc" in parsed and parsed["phase_arc"] is not None:
-                from models import PhaseArcItem, ReferenceTrack
-                phase_arc = [
-                    PhaseArcItem(
-                        phase_name=item.get("phase_name", ""),
-                        start_time=item.get("start_time", ""),
-                        end_time=item.get("end_time", ""),
-                        bpm=item.get("bpm", ""),
-                        chord=item.get("chord", ""),
-                        key=item.get("key", ""),
-                        bass=item.get("bass", ""),
-                        watch_for=item.get("watch_for") or [],
-                        action_line=item.get("action_line", ""),
-                        reference_tracks=[
-                            ReferenceTrack(
-                                bpm=int(rt.get("bpm", 0)),
-                                key=str(rt.get("key", "")),
-                                chords=rt.get("chords") or [],
-                                energy_score=int(rt.get("energy_score", 0)),
-                                why=str(rt.get("why", "")),
-                            )
-                            for rt in (item.get("reference_tracks") or [])
-                            if isinstance(rt, dict)
-                        ],
-                    )
-                    for item in parsed["phase_arc"]
-                ]
-        except Exception:
-            pass
+            if body.mode == "fast":
+                yield _sse({"type": "status", "msg": "Running fast mode synthesis…"})
+                brief_text = await run_council_fast(package, log_context)
+                all_chunks.append(brief_text)
+                yield _sse({"type": "chunk", "text": brief_text})
+            else:
+                yield _sse({"type": "status", "msg": "Assembling evidence package…"})
+                async for chunk in run_council(package, log_context):
+                    all_chunks.append(chunk)
 
-    return ShowBriefResponse(
-        brief=brief_text,
-        council_brief=council_brief,
-        phase_arc=phase_arc,
-        venue_id=body.venue_id,
-        session_number=body.session_number,
-        generated_at=datetime.now(timezone.utc),
-    )
+                    if chunk.startswith("[COUNCIL:PHASE:r1:"):
+                        # [COUNCIL:PHASE:r1:HIGH]position text
+                        inner = chunk[len("[COUNCIL:PHASE:r1:"):]
+                        confidence, _, position = inner.partition("]")
+                        yield _sse({
+                            "type": "r1",
+                            "confidence": confidence.strip(),
+                            "position": position.strip(),
+                        })
+
+                    elif chunk.startswith("[COUNCIL:PHASE:r2:"):
+                        inner = chunk[len("[COUNCIL:PHASE:r2:"):]
+                        change, _, challenge = inner.partition("]")
+                        yield _sse({
+                            "type": "r2",
+                            "change": change.strip(),
+                            "challenge": challenge.strip(),
+                        })
+
+                    elif COUNCIL_SYNTHESIS in chunk:
+                        yield _sse({"type": "status", "msg": "Synthesising final prescription…"})
+
+                    elif COUNCIL_DELIBERATING in chunk:
+                        yield _sse({"type": "status", "msg": "R1 (Nemotron) reading evidence package…"})
+
+                    elif chunk and not chunk.startswith("[COUNCIL:"):
+                        yield _sse({"type": "chunk", "text": chunk})
+
+        except Exception as exc:
+            yield _sse({"type": "error", "msg": str(exc)})
+            return
+
+        # Parse final output
+        brief_text = "".join(all_chunks)
+        synthesis_only = "".join(
+            c for c in all_chunks
+            if not c.startswith("[COUNCIL:") and COUNCIL_DELIBERATING not in c
+        )
+        parsed = _extract_json(synthesis_only)
+
+        council_brief_dict = None
+        phase_arc_list = []
+        if parsed:
+            try:
+                if parsed.get("council_brief"):
+                    council_brief_dict = parsed["council_brief"]
+                if parsed.get("phase_arc"):
+                    phase_arc_list = parsed["phase_arc"]
+            except Exception:
+                pass
+
+        yield _sse({
+            "type":          "complete",
+            "raw_brief":     brief_text,
+            "council_brief": council_brief_dict,
+            "phase_arc":     phase_arc_list,
+            "venue_id":      body.venue_id,
+            "session_number": body.session_number,
+            "generated_at":  datetime.now(timezone.utc).isoformat(),
+        })
+
+    return StreamingResponse(_stream(), media_type="text/event-stream")
 
 
 @router.get("/history/{venue_id}")

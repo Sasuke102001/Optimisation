@@ -25,17 +25,25 @@ const SHOW_TYPES = [
   { value: 'private_event', label: 'Private event' },
 ] as const
 
+const RESULT_CAP = 50
+
 export function VenueSelector() {
   const {
-    venueSearch, setVenueSearch,
     selectedVenue, selectVenue, clearVenue,
     sessionContext, setSessionContext,
     setPlanScreen, startGeneration,
   } = useSEStore()
 
+  const [search, setSearch] = useState('')
+  const [query, setQuery] = useState('')
   const [venues, setVenues] = useState<Venue[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const t = setTimeout(() => setQuery(search), 150)
+    return () => clearTimeout(t)
+  }, [search])
 
   useEffect(() => {
     let active = true
@@ -62,12 +70,22 @@ export function VenueSelector() {
   }, [])
 
   const filtered = useMemo(() => {
-    if (!venueSearch.trim()) return venues
-    const q = venueSearch.toLowerCase()
-    return venues.filter(
-      (v) => v.name.toLowerCase().includes(q) || v.area.toLowerCase().includes(q) || v.city.toLowerCase().includes(q)
-    )
-  }, [venueSearch, venues])
+    const base = query.trim()
+      ? venues.filter(v => {
+          const q = query.toLowerCase()
+          return v.name.toLowerCase().includes(q) || v.area.toLowerCase().includes(q) || v.city.toLowerCase().includes(q)
+        })
+      : venues
+    return base.slice(0, RESULT_CAP)
+  }, [query, venues])
+
+  const totalFiltered = useMemo(() => {
+    if (!query.trim()) return venues.length
+    const q = query.toLowerCase()
+    return venues.filter(v =>
+      v.name.toLowerCase().includes(q) || v.area.toLowerCase().includes(q) || v.city.toLowerCase().includes(q)
+    ).length
+  }, [query, venues])
 
   const canGenerate = !!(selectedVenue && sessionContext.date)
 
@@ -75,6 +93,12 @@ export function VenueSelector() {
     () => computeDurationHint(sessionContext.startTime, sessionContext.endTime, sessionContext.phaseCount),
     [sessionContext.startTime, sessionContext.endTime, sessionContext.phaseCount],
   )
+
+  function handleVenueSelect(v: Venue) {
+    selectVenue(v)
+    setSearch('')
+    setQuery('')
+  }
 
   function handleGenerate() {
     if (!canGenerate) return
@@ -105,8 +129,8 @@ export function VenueSelector() {
                     id="venue-search-input"
                     className="field-input vs-search-input"
                     placeholder="Search venue by name or area…"
-                    value={venueSearch}
-                    onChange={(e) => setVenueSearch(e.target.value)}
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
                     autoComplete="off"
                   />
                 </div>
@@ -116,11 +140,16 @@ export function VenueSelector() {
                   ) : error ? (
                     <p className="vs-empty" style={{ color: '#ef4444' }}>{error}</p>
                   ) : filtered.length === 0 ? (
-                    <p className="vs-empty">No venues match "{venueSearch}"</p>
+                    <p className="vs-empty">No venues match "{query}"</p>
                   ) : (
-                    filtered.map((v) => (
-                      <VenueCard key={v.id} venue={v} onSelect={selectVenue} />
-                    ))
+                    <>
+                      {filtered.map((v) => (
+                        <VenueCard key={v.id} venue={v} onSelect={handleVenueSelect} />
+                      ))}
+                      {totalFiltered > RESULT_CAP && (
+                        <p className="vs-empty">Showing {RESULT_CAP} of {totalFiltered} — refine your search</p>
+                      )}
+                    </>
                   )}
                 </div>
               </>

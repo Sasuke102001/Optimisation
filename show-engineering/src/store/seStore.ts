@@ -55,6 +55,14 @@ export interface PlanOutput {
   generatedAt: string
 }
 
+export type StreamEntryType = 'status' | 'r1' | 'r2' | 'synthesis_start'
+
+export interface StreamEntry {
+  type: StreamEntryType
+  text: string
+  meta?: string  // confidence (r1) or change level (r2)
+}
+
 export interface Venue {
   id: number
   name: string
@@ -237,7 +245,6 @@ interface SEState {
   planScreen: PlanScreen
   historyScreen: HistoryScreen
 
-  venueSearch: string
   selectedVenue: Venue | null
 
   sessionContext: SessionContext
@@ -249,11 +256,12 @@ interface SEState {
   agents: AgentRow[]
   conversationalPanelOpen: boolean
   planOutput: PlanOutput | null
+  streamLog: StreamEntry[]
+  synthesisBuf: string
 
   setNavSection: (s: NavSection) => void
   setPlanScreen: (s: PlanScreen) => void
   setHistoryScreen: (s: HistoryScreen) => void
-  setVenueSearch: (q: string) => void
   selectVenue: (v: Venue) => void
   clearVenue: () => void
   setSessionContext: (patch: Partial<SessionContext>) => void
@@ -314,7 +322,6 @@ export const useSEStore = create<SEState>((set, get) => ({
   planScreen: 'venue_selector',
   historyScreen: 'show_history',
 
-  venueSearch: '',
   selectedVenue: null,
 
   sessionContext: { ...DEFAULT_CONTEXT },
@@ -324,12 +331,13 @@ export const useSEStore = create<SEState>((set, get) => ({
   agents: INITIAL_AGENTS,
   conversationalPanelOpen: false,
   planOutput: null,
+  streamLog: [],
+  synthesisBuf: '',
 
   setNavSection: (s) => set({ navSection: s }),
   setPlanScreen: (s) => set({ planScreen: s }),
   setHistoryScreen: (s) => set({ historyScreen: s }),
-  setVenueSearch: (q) => set({ venueSearch: q }),
-  selectVenue: (v) => set({ selectedVenue: v, venueSearch: '' }),
+  selectVenue: (v) => set({ selectedVenue: v }),
   clearVenue: () => set({
     selectedVenue: null,
     sessionContext: { ...DEFAULT_CONTEXT },
@@ -353,163 +361,187 @@ export const useSEStore = create<SEState>((set, get) => ({
     }),
   resetBoundaries: () => set({ manualBoundaries: null }),
   startGeneration: async () => {
-    set({ generationStatus: 'stage_1_running', agents: INITIAL_AGENTS })
-    
-    const { selectedVenue, sessionContext, setPlanOutput, setPlanScreen, updateAgentStatus, setGenerationStatus } = get()
-    
+    const { selectedVenue, sessionContext } = get()
     if (!selectedVenue) {
       set({ generationStatus: 'error' })
       return
     }
 
-    // Set all 4 Stage-1 agents to 'running'
-    const stage1AgentIds = [1, 2, 3, 4]
-    stage1AgentIds.forEach(id => updateAgentStatus(id, 'running'))
+    set({
+      generationStatus: 'stage_1_running',
+      agents: INITIAL_AGENTS.map(a =>
+        a.id <= 4 ? { ...a, status: 'running' } : a
+      ),
+      streamLog: [],
+      synthesisBuf: '',
+      planOutput: null,
+    })
 
-    // Prepare API request body
-    const requestBody = {
-      venue_id: selectedVenue.id,
-      venue_name: selectedVenue.name,
-      area: selectedVenue.area || null,
-      city: selectedVenue.city || null,
-      primary_type: selectedVenue.primary_type || null,
+    const body = {
+      venue_id:      selectedVenue.id,
+      venue_name:    selectedVenue.name,
+      area:          selectedVenue.area || null,
+      city:          selectedVenue.city || null,
+      primary_type:  selectedVenue.primary_type || null,
       cascade_types: selectedVenue.cascade_types || [],
-      session_number: 1, // hardcoded for now
-      show_date: sessionContext.date,
-      start_time: sessionContext.startTime || null,
-      end_time: sessionContext.endTime || null,
-      phase_count: sessionContext.phaseCount,
-      crowd_size: sessionContext.crowdSize || null,
-      crowd_type: sessionContext.crowdType || null,
-      show_type: sessionContext.showType || null,
-      notes: sessionContext.notes || null,
-      live_state: null,
-      mode: 'council'
+      session_number: 1,
+      show_date:     sessionContext.date,
+      start_time:    sessionContext.startTime || null,
+      end_time:      sessionContext.endTime || null,
+      phase_count:   sessionContext.phaseCount,
+      crowd_size:    sessionContext.crowdSize || null,
+      crowd_type:    sessionContext.crowdType || null,
+      show_type:     sessionContext.showType || null,
+      notes:         sessionContext.notes || null,
+      live_state:    null,
+      mode:          'council',
     }
 
-    let apiCompleted = false
-    let apiData: any = null
-    let apiError: any = null
-
-    const apiPromise = fetch('/api/show/brief', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(requestBody)
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          throw new Error(`Server returned ${res.status}: ${res.statusText}`)
-        }
-        return res.json()
+    let res: Response
+    try {
+      res = await fetch('/api/show/brief', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
       })
-      .then((data) => {
-        apiCompleted = true
-        apiData = data
-      })
-      .catch((err) => {
-        apiCompleted = true
-        apiError = err
-      })
-
-    // Wait for ~1.5s OR until API completes, whichever is first/last
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(() => {
-        resolve()
-      }, 1500)
-
-      const checkInterval = setInterval(() => {
-        if (apiCompleted) {
-          clearInterval(checkInterval)
-          clearTimeout(timer)
-          resolve()
-        }
-      }, 100)
-    })
-
-    if (apiError) {
-      setGenerationStatus('error')
-      setPlanOutput({
-        councilBrief: null,
-        phaseArc: [],
-        rawBrief: `Error: ${apiError.message || apiError}`,
-        generatedAt: new Date().toISOString()
+      if (!res.ok) throw new Error(`Server returned ${res.status}: ${res.statusText}`)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      set({
+        generationStatus: 'error',
+        streamLog: [{ type: 'status', text: `Error: ${msg}` }],
       })
       return
     }
 
-    // Set Stage-1 agents to 'done', set generationStatus: 'stage_2_running', set agents 5–6 to 'running'
-    stage1AgentIds.forEach(id => updateAgentStatus(id, 'done'))
-    setGenerationStatus('stage_2_running')
-    const stage2AgentIds = [5, 6]
-    stage2AgentIds.forEach(id => updateAgentStatus(id, 'running'))
+    const reader = res.body!.getReader()
+    const decoder = new TextDecoder()
+    let buf = ''
 
-    // Wait for the API to fully complete if it hasn't yet
-    const stage2Start = Date.now()
-    if (!apiCompleted) {
-      await apiPromise
+    const appendLog = (entry: StreamEntry) =>
+      set(s => ({ streamLog: [...s.streamLog, entry] }))
+
+    try {
+      while (true) {
+        const { value, done } = await reader.read()
+        if (done) break
+        buf += decoder.decode(value, { stream: true })
+
+        // SSE lines: "data: {...}\n\n"
+        const lines = buf.split('\n')
+        buf = lines.pop() ?? ''
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          let event: Record<string, unknown>
+          try { event = JSON.parse(line.slice(6)) } catch { continue }
+
+          switch (event.type) {
+            case 'status':
+              appendLog({ type: 'status', text: event.msg as string })
+              // R2 starting means stage 1 done, stage 2 running
+              if ((event.msg as string).includes('R2') || (event.msg as string).includes('Synthes')) {
+                set(s => ({
+                  generationStatus: 'stage_2_running',
+                  agents: s.agents.map(a =>
+                    a.id <= 4 ? { ...a, status: 'done' }
+                    : a.id <= 6 ? { ...a, status: 'running' }
+                    : a
+                  ),
+                }))
+              }
+              break
+
+            case 'r1':
+              appendLog({
+                type: 'r1',
+                text: event.position as string,
+                meta: event.confidence as string,
+              })
+              // R1 done → agents 5-6 now running (stage 2)
+              set(s => ({
+                generationStatus: 'stage_2_running',
+                agents: s.agents.map(a =>
+                  a.id <= 4 ? { ...a, status: 'done' }
+                  : a.id <= 6 ? { ...a, status: 'running' }
+                  : a
+                ),
+              }))
+              break
+
+            case 'r2':
+              appendLog({
+                type: 'r2',
+                text: event.challenge as string,
+                meta: event.change as string,
+              })
+              break
+
+            case 'synthesis_start':
+              appendLog({ type: 'synthesis_start', text: 'Synthesising final prescription…' })
+              break
+
+            case 'chunk':
+              set(s => ({ synthesisBuf: s.synthesisBuf + (event.text as string) }))
+              break
+
+            case 'complete': {
+              const cb = event.council_brief as Record<string, string> | null
+              const arc = event.phase_arc as any[] | null
+
+              set(s => ({
+                generationStatus: 'complete',
+                agents: s.agents.map(a =>
+                  a.id <= 6 ? { ...a, status: 'done' } : a
+                ),
+                planOutput: {
+                  councilBrief: cb ? {
+                    state:     cb.state,
+                    mechanism: cb.mechanism,
+                    lever:     cb.lever,
+                    action:    cb.action,
+                    signal:    cb.signal,
+                  } : null,
+                  phaseArc: (arc ?? []).map((item: any) => ({
+                    phase_name:       item.phase_name,
+                    bpm:              item.bpm,
+                    chord:            item.chord,
+                    key:              item.key,
+                    bass:             item.bass,
+                    watch_for:        item.watch_for ?? [],
+                    action_line:      item.action_line,
+                    reference_tracks: (item.reference_tracks ?? []).map((rt: any) => ({
+                      bpm:          rt.bpm,
+                      key:          rt.key,
+                      chords:       rt.chords ?? [],
+                      energy_score: rt.energy_score,
+                      why:          rt.why,
+                    })),
+                  })),
+                  rawBrief:    s.synthesisBuf,
+                  generatedAt: event.generated_at as string,
+                },
+              }))
+
+              setTimeout(() => get().setPlanScreen('show_plan'), 600)
+              break
+            }
+
+            case 'error':
+              set({ generationStatus: 'error' })
+              appendLog({ type: 'status', text: `Error: ${event.msg}` })
+              break
+          }
+        }
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      set({ generationStatus: 'error' })
+      appendLog({ type: 'status', text: `Stream error: ${msg}` })
     }
-
-    if (apiError) {
-      setGenerationStatus('error')
-      setPlanOutput({
-        councilBrief: null,
-        phaseArc: [],
-        rawBrief: `Error: ${apiError.message || apiError}`,
-        generatedAt: new Date().toISOString()
-      })
-      return
-    }
-
-    // Ensure Stage 2 runs for at least 800ms to allow animations to show
-    const stage2Elapsed = Date.now() - stage2Start
-    if (stage2Elapsed < 800) {
-      await new Promise(resolve => setTimeout(resolve, 800 - stage2Elapsed))
-    }
-
-    // On response arrival, set agents 5–6 to 'done', generationStatus: 'complete'
-    stage2AgentIds.forEach(id => updateAgentStatus(id, 'done'))
-    setGenerationStatus('complete')
-
-    // Call setPlanOutput() with the parsed response
-    const mappedOutput: PlanOutput = {
-      councilBrief: apiData.council_brief ? {
-        state: apiData.council_brief.state,
-        mechanism: apiData.council_brief.mechanism,
-        lever: apiData.council_brief.lever,
-        action: apiData.council_brief.action,
-        signal: apiData.council_brief.signal
-      } : null,
-      phaseArc: (apiData.phase_arc || []).map((item: any) => ({
-        phase_name: item.phase_name,
-        bpm: item.bpm,
-        chord: item.chord,
-        key: item.key,
-        bass: item.bass,
-        watch_for: item.watch_for || [],
-        action_line: item.action_line,
-        reference_tracks: (item.reference_tracks || []).map((rt: any) => ({
-          bpm: rt.bpm,
-          key: rt.key,
-          chords: rt.chords || [],
-          energy_score: rt.energy_score,
-          why: rt.why,
-        })),
-      })),
-      rawBrief: apiData.brief,
-      generatedAt: apiData.generated_at
-    }
-
-    setPlanOutput(mappedOutput)
-
-    // After 600ms, call setPlanScreen('show_plan')
-    setTimeout(() => {
-      setPlanScreen('show_plan')
-    }, 600)
   },
   resetGeneration: () =>
-    set({ generationStatus: 'idle', agents: INITIAL_AGENTS, planScreen: 'venue_selector', conversationalPanelOpen: false, planOutput: null }),
+    set({ generationStatus: 'idle', agents: INITIAL_AGENTS, planScreen: 'venue_selector', conversationalPanelOpen: false, planOutput: null, streamLog: [], synthesisBuf: '' }),
   setConversationalPanel: (open) => set({ conversationalPanelOpen: open }),
   updateAgentStatus: (id, status) =>
     set((s) => ({

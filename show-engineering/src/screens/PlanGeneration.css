@@ -128,3 +128,105 @@
   white-space: pre-wrap;
   flex: 1;
 }
+
+/* ── Live stream log ── */
+.pg-stream-log {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  overflow-y: auto;
+  max-height: 520px;
+  padding-right: 4px;
+}
+
+.pg-stream-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.pg-stream-entry--status {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  padding: 4px 0;
+}
+
+.pg-stream-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  flex-shrink: 0;
+}
+.pg-stream-dot--gold { background: var(--gold); }
+
+.pg-stream-entry--r1 {
+  background: rgba(230, 211, 163, 0.06);
+  border: 1px solid rgba(230, 211, 163, 0.15);
+}
+.pg-stream-entry--r2 {
+  background: rgba(148, 163, 184, 0.05);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.pg-stream-entry-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.pg-stream-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+.pg-stream-label--r1       { background: rgba(230, 211, 163, 0.18); color: var(--gold); }
+.pg-stream-label--r2       { background: rgba(148, 163, 184, 0.14); color: #94a3b8; }
+.pg-stream-label--synthesis { background: rgba(230, 211, 163, 0.12); color: var(--gold-muted); }
+
+.pg-stream-badge {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: var(--text-secondary);
+  background: rgba(255,255,255,0.05);
+}
+.pg-stream-badge--major { color: #f87171; background: rgba(248,113,113,0.1); }
+.pg-stream-badge--minor { color: #94a3b8; }
+.pg-stream-badge--none  { color: #4ade80; background: rgba(74,222,128,0.08); }
+
+.pg-stream-entry-text {
+  color: var(--text-primary);
+  font-size: 12.5px;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.pg-stream-synthesis {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pg-stream-synthesis-text {
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  margin: 0;
+}

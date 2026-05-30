@@ -1,5 +1,6 @@
+import { useEffect, useRef } from 'react'
 import { useSEStore } from '../store/seStore'
-import type { AgentStatus } from '../store/seStore'
+import type { AgentStatus, StreamEntry } from '../store/seStore'
 import './PlanGeneration.css'
 
 export function PlanGeneration() {
@@ -8,8 +9,18 @@ export function PlanGeneration() {
     generationStatus,
     resetGeneration,
     selectedVenue,
-    planOutput,
+    streamLog,
+    synthesisBuf,
   } = useSEStore()
+
+  const streamEndRef = useRef<HTMLDivElement>(null)
+
+  // Auto-scroll stream area as content arrives
+  useEffect(() => {
+    streamEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [streamLog, synthesisBuf])
+
+  const hasStream = streamLog.length > 0 || synthesisBuf.length > 0
 
   return (
     <div className="pg-root fade-in">
@@ -67,29 +78,89 @@ export function PlanGeneration() {
 
         {/* Synthesis stream area */}
         <div className="card pg-stream-card">
-          <p className="field-label" style={{ marginBottom: 14 }}>Synthesis Stream</p>
-          {generationStatus === 'complete' && planOutput ? (
-            <pre className="pg-stream-output fade-in">{planOutput.rawBrief}</pre>
-          ) : generationStatus === 'error' ? (
-            <div className="pg-stream-error fade-in" style={{ padding: '20px 0' }}>
-              <p className="error-text" style={{ color: '#ef4444', fontSize: '13px', lineHeight: '1.5' }}>
-                {planOutput?.rawBrief || 'An error occurred during plan generation.'}
-              </p>
+          <p className="field-label" style={{ marginBottom: 14 }}>Council Stream</p>
+
+          {generationStatus === 'error' && !hasStream ? (
+            <p className="error-text" style={{ color: '#ef4444', fontSize: '13px' }}>
+              An error occurred during plan generation.
+            </p>
+          ) : hasStream ? (
+            <div className="pg-stream-log">
+              {streamLog.map((entry, i) => (
+                <StreamLogEntry key={i} entry={entry} />
+              ))}
+              {synthesisBuf && (
+                <div className="pg-stream-synthesis">
+                  <span className="pg-stream-label pg-stream-label--synthesis">SYNTHESIS</span>
+                  <pre className="pg-stream-synthesis-text">{synthesisBuf}</pre>
+                </div>
+              )}
+              <div ref={streamEndRef} />
             </div>
           ) : (
             <div className="pg-stream-placeholder">
               <div className="pg-stream-spinner" />
-              <p>
-                {generationStatus === 'stage_1_running'
-                  ? 'Agents 1–4 gathering behavioral and neuroacoustic context…'
-                  : 'Agents 5–6 integrating and prescribing show plan…'}
-              </p>
+              <p>Connecting to Council…</p>
             </div>
           )}
         </div>
       </div>
     </div>
   )
+}
+
+// ── Stream log entry ──────────────────────────────────────────────────────────
+
+function StreamLogEntry({ entry }: { entry: StreamEntry }) {
+  if (entry.type === 'status') {
+    return (
+      <div className="pg-stream-entry pg-stream-entry--status">
+        <span className="pg-stream-dot" />
+        <span>{entry.text}</span>
+      </div>
+    )
+  }
+
+  if (entry.type === 'r1') {
+    return (
+      <div className="pg-stream-entry pg-stream-entry--r1">
+        <div className="pg-stream-entry-header">
+          <span className="pg-stream-label pg-stream-label--r1">R1 PROPOSAL</span>
+          {entry.meta && (
+            <span className="pg-stream-badge">{entry.meta}</span>
+          )}
+        </div>
+        <p className="pg-stream-entry-text">{entry.text}</p>
+      </div>
+    )
+  }
+
+  if (entry.type === 'r2') {
+    return (
+      <div className="pg-stream-entry pg-stream-entry--r2">
+        <div className="pg-stream-entry-header">
+          <span className="pg-stream-label pg-stream-label--r2">R2 CHALLENGE</span>
+          {entry.meta && (
+            <span className={`pg-stream-badge pg-stream-badge--${entry.meta.toLowerCase()}`}>
+              {entry.meta}
+            </span>
+          )}
+        </div>
+        <p className="pg-stream-entry-text">{entry.text}</p>
+      </div>
+    )
+  }
+
+  if (entry.type === 'synthesis_start') {
+    return (
+      <div className="pg-stream-entry pg-stream-entry--status">
+        <span className="pg-stream-dot pg-stream-dot--gold" />
+        <span>{entry.text}</span>
+      </div>
+    )
+  }
+
+  return null
 }
 
 // ── Dot component ─────────────────────────────────────────────────────────────
