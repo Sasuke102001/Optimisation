@@ -498,7 +498,7 @@ export const useSEStore = create<SEState>((set, get) => ({
     const decoder = new TextDecoder()
     let buf = ''
     let lastEventAt = Date.now()
-    const STALL_TIMEOUT_MS = 45_000
+    const STALL_TIMEOUT_MS = 180_000 // 3 min — LLM calls can take 60-120s each
 
     const appendLog = (entry: StreamEntry) => {
       lastEventAt = Date.now()
