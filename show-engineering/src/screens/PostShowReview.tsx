@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSEStore } from '../store/seStore'
 import './PostShowReview.css'
 
 const MOCK_SESSIONS = [
@@ -15,6 +16,7 @@ const INTERVENTIONS_LIST = [
 ]
 
 export function PostShowReview() {
+  const { setHistoryScreen } = useSEStore()
   const [selectedSession, setSelectedSession] = useState('')
   const [phaseSignals, setPhaseSignals] = useState<Record<string, string>>({})
   const [deployedInterventions, setDeployedInterventions] = useState<Set<number>>(new Set())
@@ -35,8 +37,18 @@ export function PostShowReview() {
   return (
     <div className="psr-root fade-in">
       <div className="psr-header">
-        <h1 className="psr-title clash">Post-Show Review</h1>
-        <p className="psr-subtitle">Compare plan vs actual KPI data and log outcome for the M3 database.</p>
+        <div>
+          <button
+            id="back-to-history-btn"
+            className="btn btn-ghost"
+            style={{ fontSize: 12, marginBottom: 12, padding: '5px 10px' }}
+            onClick={() => setHistoryScreen('show_history')}
+          >
+            ← Back to History
+          </button>
+          <h1 className="psr-title clash">Post-Show Review</h1>
+          <p className="psr-subtitle">Compare plan vs actual KPI data and log outcome for the M3 database.</p>
+        </div>
       </div>
 
       {/* Session selector */}

@@ -392,7 +392,6 @@ export function ShowPlan() {
                               <th>Key</th>
                               <th>Chords</th>
                               <th>Energy</th>
-                              <th>Why</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -403,7 +402,7 @@ export function ShowPlan() {
                                   ? 'sp-rt-energy--mid'
                                   : 'sp-rt-energy--high'
                               return (
-                                <tr key={rti}>
+                                <tr key={rti} title={rt.why}>
                                   <td className="sp-rt-bpm">{rt.bpm}</td>
                                   <td className="sp-rt-key">{rt.key}</td>
                                   <td className="sp-rt-chords">
@@ -412,7 +411,6 @@ export function ShowPlan() {
                                     ))}
                                   </td>
                                   <td className={`sp-rt-energy ${energyClass}`}>{rt.energy_score}</td>
-                                  <td className="sp-rt-why">{rt.why}</td>
                                 </tr>
                               )
                             })}

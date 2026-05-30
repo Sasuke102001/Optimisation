@@ -92,7 +92,10 @@ export function PlanGeneration() {
               {synthesisBuf && (
                 <div className="pg-stream-synthesis">
                   <span className="pg-stream-label pg-stream-label--synthesis">SYNTHESIS</span>
-                  <pre className="pg-stream-synthesis-text">{synthesisBuf}</pre>
+                  <div className="pg-synthesis-generating">
+                    <div className="pg-stream-spinner" />
+                    <span>Generating show plan…</span>
+                  </div>
                 </div>
               )}
               <div ref={streamEndRef} />

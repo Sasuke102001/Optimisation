@@ -249,6 +249,54 @@ async def log_show_outcome(body: ShowOutcomeRequest):
     return {"logged": True, "outcome_id": outcome_id}
 
 
+@router.get("/runs")
+async def get_all_show_runs(limit: int = 20):
+    """
+    Returns recent show plans across all venues, newest first.
+    Used by ShowHistory screen in the SE app.
+    """
+    pool = get_m3_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT sp.id, sp.venue_id, sp.plan_date, sp.version, sp.phase_count,
+                   sp.start_time, sp.end_time, sp.generated_at, sp.finalized,
+                   sp.m2_context_snapshot,
+                   v.venue_name, v.area, v.city
+            FROM m3_show_plans sp
+            LEFT JOIN m3_venues v ON sp.venue_id = v.venue_id
+            ORDER BY sp.generated_at DESC
+            LIMIT $1
+            """,
+            limit,
+        )
+
+    results = []
+    for r in rows:
+        row = dict(r)
+        ctx = row.get("m2_context_snapshot") or {}
+        show_type = ctx.get("show_type") if isinstance(ctx, dict) else None
+        plan_date = row["plan_date"]
+        generated_at = row["generated_at"]
+        results.append({
+            "id":          row["id"],
+            "venue_id":    row["venue_id"],
+            "venue_name":  row.get("venue_name") or f"Venue {row['venue_id']}",
+            "area":        row.get("area") or "",
+            "city":        row.get("city") or "",
+            "plan_date":   plan_date.isoformat() if plan_date else None,
+            "version":     row["version"],
+            "phase_count": row["phase_count"],
+            "start_time":  row["start_time"],
+            "end_time":    row["end_time"],
+            "show_type":   show_type,
+            "generated_at": generated_at.isoformat() if generated_at else None,
+            "finalized":   row["finalized"],
+            "outcome":     "no_review",
+        })
+    return results
+
+
 @router.post("/converse")
 async def converse_with_agent7(body: ConversationRequest):
     """

@@ -31,31 +31,11 @@ function App() {
             <button
               id="nav-tab-history"
               className={`app-nav-tab${navSection === 'history' ? ' active' : ''}`}
-              onClick={() => setNavSection('history')}
+              onClick={() => { setNavSection('history'); setHistoryScreen('show_history') }}
             >
               History
             </button>
           </nav>
-
-          {/* History sub-tabs (only visible in history section) */}
-          {navSection === 'history' && (
-            <div className="app-nav-subtabs">
-              <button
-                id="nav-subtab-review"
-                className={`app-nav-subtab${historyScreen === 'post_show_review' ? ' active' : ''}`}
-                onClick={() => setHistoryScreen('post_show_review')}
-              >
-                Post-Show Review
-              </button>
-              <button
-                id="nav-subtab-history"
-                className={`app-nav-subtab${historyScreen === 'show_history' ? ' active' : ''}`}
-                onClick={() => setHistoryScreen('show_history')}
-              >
-                Prior Shows
-              </button>
-            </div>
-          )}
         </div>
       </header>
 
@@ -70,8 +50,8 @@ function App() {
         )}
         {navSection === 'history' && (
           <>
-            {historyScreen === 'post_show_review' && <PostShowReview />}
             {historyScreen === 'show_history'     && <ShowHistory />}
+            {historyScreen === 'post_show_review' && <PostShowReview />}
           </>
         )}
       </main>

@@ -1,71 +1,41 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useSEStore } from '../store/seStore'
 import './ShowHistory.css'
 
 type OutcomeKey = 'exceeded' | 'met' | 'below' | 'no_review'
 
-interface HistoryEntry {
+interface ShowRun {
   id: number
-  date: string
-  venue: string
+  venue_id: number
+  venue_name: string
   area: string
-  showType: string
+  city: string
+  plan_date: string | null
+  version: number
+  phase_count: number
+  start_time: string
+  end_time: string
+  show_type: string | null
+  generated_at: string | null
+  finalized: boolean
   outcome: OutcomeKey
-  planSummary: string
-  outcomeNotes: string
 }
-
-const MOCK_HISTORY: HistoryEntry[] = [
-  {
-    id: 1,
-    date: 'Sat 21 Jun 2025',
-    venue: 'Todi Mill Social',
-    area: 'Lower Parel, Mumbai',
-    showType: 'DJ night',
-    outcome: 'exceeded',
-    planSummary: 'BPM arc 105→134→110. Peak phase sustained from 11 PM–1 AM. Sub-bass stack deployed at 11:40 PM. Floor occupancy exceeded projections by ~18% at peak.',
-    outcomeNotes: 'Corporate group arrived at 11 PM — seated near floor per staff notes. Worked well. Will replicate seating strategy.',
-  },
-  {
-    id: 2,
-    date: 'Fri 14 Jun 2025',
-    venue: 'Kitty Su',
-    area: 'Lower Parel, Mumbai',
-    showType: 'Private event',
-    outcome: 'met',
-    planSummary: 'Private corporate event. BPM arc capped at 126 (corporate preset). Chord structure shifted to major modes throughout.',
-    outcomeNotes: 'Client was satisfied. Bar spend above average. Floor not heavily used — expected for corporate format.',
-  },
-  {
-    id: 3,
-    date: 'Sat 7 Jun 2025',
-    venue: 'Todi Mill Social',
-    area: 'Lower Parel, Mumbai',
-    showType: 'DJ night',
-    outcome: 'below',
-    planSummary: 'Intervention 1 triggered at 10:40 PM (floor < 30%). Recovery partial — floor reached ~45% peak occupancy vs 70% target.',
-    outcomeNotes: 'Competing venue had a big event same night. External crowd draw reduced walk-in flow. Note for future: check city event calendar.',
-  },
-  {
-    id: 4,
-    date: 'Fri 30 May 2025',
-    venue: 'Aer',
-    area: 'Worli, Mumbai',
-    showType: 'Live band',
-    outcome: 'no_review',
-    planSummary: 'Live band set with BPM arc 100–120. Chord structure advisory only — band played own set.',
-    outcomeNotes: '',
-  },
-]
 
 const OUTCOME_BADGE: Record<OutcomeKey, { label: string; cls: string }> = {
-  exceeded:  { label: 'Exceeded',  cls: 'badge badge-ok' },
-  met:       { label: 'Met plan',  cls: 'badge badge-watch' },
+  exceeded:  { label: 'Exceeded',   cls: 'badge badge-ok' },
+  met:       { label: 'Met plan',   cls: 'badge badge-watch' },
   below:     { label: 'Below plan', cls: 'badge badge-alert' },
-  no_review: { label: 'No review', cls: 'badge badge-stale' },
+  no_review: { label: 'No review',  cls: 'badge badge-stale' },
 }
 
-const SHOW_TYPE_OPTIONS = ['All types', 'DJ night', 'Private event', 'Live band', 'Open mic']
+const SHOW_TYPE_DISPLAY: Record<string, string> = {
+  dj_night:      'DJ night',
+  live_band:     'Live band',
+  open_mic:      'Open mic',
+  private_event: 'Private event',
+}
+
+const SHOW_TYPE_OPTIONS = ['All types', 'DJ night', 'Live band', 'Open mic', 'Private event']
 const OUTCOME_OPTIONS: Array<{ value: string; label: string }> = [
   { value: 'all',       label: 'All outcomes' },
   { value: 'exceeded',  label: 'Exceeded' },
@@ -74,14 +44,58 @@ const OUTCOME_OPTIONS: Array<{ value: string; label: string }> = [
   { value: 'no_review', label: 'No review' },
 ]
 
+function formatPlanDate(isoDate: string | null): string {
+  if (!isoDate) return '—'
+  const d = new Date(isoDate + 'T00:00:00')
+  return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+function formatTime(hhmm: string): string {
+  if (!hhmm) return ''
+  const [hStr, mStr] = hhmm.split(':')
+  const h = parseInt(hStr, 10)
+  const m = parseInt(mStr ?? '0', 10)
+  const period = h >= 12 ? 'PM' : 'AM'
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h
+  return m === 0 ? `${h12} ${period}` : `${h12}:${String(m).padStart(2, '0')} ${period}`
+}
+
+function planSummary(run: ShowRun): string {
+  const timeStr = `${formatTime(run.start_time)}–${formatTime(run.end_time)}`
+  const phases = `${run.phase_count} phases`
+  const type = run.show_type ? SHOW_TYPE_DISPLAY[run.show_type] ?? run.show_type : null
+  return [type, phases, timeStr].filter(Boolean).join(' · ')
+}
+
 export function ShowHistory() {
-  const { setNavSection, setPlanScreen } = useSEStore()
+  const { setNavSection, setPlanScreen, setHistoryScreen } = useSEStore()
+
+  const [runs, setRuns] = useState<ShowRun[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [filterType, setFilterType] = useState('All types')
   const [filterOutcome, setFilterOutcome] = useState('all')
 
-  const filtered = MOCK_HISTORY.filter((e) => {
-    const typeOk = filterType === 'All types' || e.showType === filterType
+  useEffect(() => {
+    setLoading(true)
+    setError(null)
+    fetch('/api/show/runs')
+      .then((r) => {
+        if (!r.ok) throw new Error(`${r.status}: ${r.statusText}`)
+        return r.json() as Promise<ShowRun[]>
+      })
+      .then((data) => { setRuns(data); setLoading(false) })
+      .catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : String(err)
+        setError(msg)
+        setLoading(false)
+      })
+  }, [])
+
+  const filtered = runs.filter((e) => {
+    const displayType = e.show_type ? SHOW_TYPE_DISPLAY[e.show_type] ?? e.show_type : null
+    const typeOk = filterType === 'All types' || displayType === filterType
     const outcomeOk = filterOutcome === 'all' || e.outcome === filterOutcome
     return typeOk && outcomeOk
   })
@@ -89,6 +103,10 @@ export function ShowHistory() {
   function handleNewPlan() {
     setNavSection('plan')
     setPlanScreen('venue_selector')
+  }
+
+  function handleLogReview() {
+    setHistoryScreen('post_show_review')
   }
 
   return (
@@ -133,9 +151,25 @@ export function ShowHistory() {
         </div>
       </div>
 
-      {/* Session list */}
+      {/* Content */}
       <div className="sh-list">
-        {filtered.length === 0 && (
+        {loading && (
+          <div className="sh-empty">Loading show history…</div>
+        )}
+        {!loading && error && (
+          <div className="sh-empty" style={{ color: '#f87171' }}>
+            Could not load history: {error}
+          </div>
+        )}
+        {!loading && !error && runs.length === 0 && (
+          <div className="sh-empty">
+            No show plans yet.{' '}
+            <button className="btn btn-gold" style={{ marginLeft: 8 }} onClick={handleNewPlan}>
+              Generate your first plan →
+            </button>
+          </div>
+        )}
+        {!loading && !error && runs.length > 0 && filtered.length === 0 && (
           <div className="sh-empty">No sessions match the current filters.</div>
         )}
         {filtered.map((entry) => {
@@ -149,9 +183,12 @@ export function ShowHistory() {
                 onClick={() => setExpandedId(isOpen ? null : entry.id)}
               >
                 <div className="sh-entry-left">
-                  <div className="sh-entry-date">{entry.date}</div>
-                  <div className="sh-entry-venue">{entry.venue}</div>
-                  <div className="sh-entry-meta">{entry.area} · {entry.showType}</div>
+                  <div className="sh-entry-date">{formatPlanDate(entry.plan_date)}</div>
+                  <div className="sh-entry-venue">{entry.venue_name}</div>
+                  <div className="sh-entry-meta">
+                    {[entry.area, entry.city].filter(Boolean).join(', ')}
+                    {entry.show_type ? ` · ${SHOW_TYPE_DISPLAY[entry.show_type] ?? entry.show_type}` : ''}
+                  </div>
                 </div>
                 <div className="sh-entry-right">
                   <span className={badge.cls}>{badge.label}</span>
@@ -163,12 +200,18 @@ export function ShowHistory() {
                 <div className="sh-entry-body fade-in">
                   <div className="sh-entry-section">
                     <p className="sh-entry-k">Plan Summary</p>
-                    <p className="sh-entry-v">{entry.planSummary}</p>
+                    <p className="sh-entry-v">{planSummary(entry)}</p>
                   </div>
-                  {entry.outcomeNotes && (
+                  {entry.outcome === 'no_review' && (
                     <div className="sh-entry-section">
-                      <p className="sh-entry-k">Outcome Notes</p>
-                      <p className="sh-entry-v">{entry.outcomeNotes}</p>
+                      <button
+                        id={`log-review-btn-${entry.id}`}
+                        className="btn btn-gold"
+                        style={{ fontSize: 12 }}
+                        onClick={handleLogReview}
+                      >
+                        + Log Post-Show Review
+                      </button>
                     </div>
                   )}
                 </div>
