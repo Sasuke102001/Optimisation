@@ -497,9 +497,24 @@ export const useSEStore = create<SEState>((set, get) => ({
     const reader = res.body!.getReader()
     const decoder = new TextDecoder()
     let buf = ''
+    let lastEventAt = Date.now()
+    const STALL_TIMEOUT_MS = 45_000
 
-    const appendLog = (entry: StreamEntry) =>
+    const appendLog = (entry: StreamEntry) => {
+      lastEventAt = Date.now()
       set(s => ({ streamLog: [...s.streamLog, entry] }))
+    }
+
+    const stallCheck = setInterval(() => {
+      if (Date.now() - lastEventAt > STALL_TIMEOUT_MS) {
+        clearInterval(stallCheck)
+        reader.cancel()
+        set(s => ({
+          generationStatus: 'error',
+          streamLog: [...s.streamLog, { type: 'status', text: 'Error: Council timed out — no response from backend.' }],
+        }))
+      }
+    }, 5_000)
 
     try {
       while (true) {
@@ -559,6 +574,14 @@ export const useSEStore = create<SEState>((set, get) => ({
 
             case 'synthesis_start':
               appendLog({ type: 'synthesis_start', text: 'Synthesising final prescription…' })
+              set(s => ({
+                generationStatus: 'stage_2_running',
+                agents: s.agents.map(a =>
+                  a.id <= 4 ? { ...a, status: 'done' }
+                  : a.id <= 6 ? { ...a, status: 'running' }
+                  : a
+                ),
+              }))
               break
 
             case 'chunk':
@@ -566,6 +589,7 @@ export const useSEStore = create<SEState>((set, get) => ({
               break
 
             case 'complete': {
+              clearInterval(stallCheck)
               const cb = event.council_brief as Record<string, string> | null
               const arc = event.phase_arc as any[] | null
 
@@ -608,6 +632,7 @@ export const useSEStore = create<SEState>((set, get) => ({
             }
 
             case 'error':
+              clearInterval(stallCheck)
               set({ generationStatus: 'error' })
               appendLog({ type: 'status', text: `Error: ${event.msg}` })
               break
@@ -615,6 +640,7 @@ export const useSEStore = create<SEState>((set, get) => ({
         }
       }
     } catch (err: unknown) {
+      clearInterval(stallCheck)
       const msg = err instanceof Error ? err.message : String(err)
       set({ generationStatus: 'error' })
       appendLog({ type: 'status', text: `Stream error: ${msg}` })

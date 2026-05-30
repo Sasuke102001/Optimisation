@@ -221,7 +221,26 @@ export function ShowPlan() {
           <button id="print-plan-btn" className="btn btn-ghost" onClick={() => window.print()}>
             ⎙ Print / Screenshot
           </button>
-          <button id="save-plan-btn" className="btn btn-ghost" style={{ opacity: 0.5, cursor: 'not-allowed' }}>
+          <button
+            id="save-plan-btn"
+            className="btn btn-ghost"
+            onClick={() => {
+              if (!planOutput) return
+              const payload = {
+                venue: selectedVenue,
+                session: sessionContext,
+                plan: planOutput,
+                exportedAt: new Date().toISOString(),
+              }
+              const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+              const url = URL.createObjectURL(blob)
+              const a = document.createElement('a')
+              a.href = url
+              a.download = `show-plan-${selectedVenue?.name?.replace(/\s+/g, '-').toLowerCase()}-${sessionContext.date || 'draft'}.json`
+              a.click()
+              URL.revokeObjectURL(url)
+            }}
+          >
             ↓ Save Plan
           </button>
           <button id="new-plan-btn" className="btn btn-gold" onClick={resetGeneration}>

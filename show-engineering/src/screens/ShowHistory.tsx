@@ -116,9 +116,14 @@ export function ShowHistory() {
           <h1 className="sh-title clash">Prior Shows</h1>
           <p className="sh-subtitle">Per-venue history of show plans and post-show outcomes.</p>
         </div>
-        <button id="new-plan-from-history-btn" className="btn btn-gold" onClick={handleNewPlan}>
-          + New Plan
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button id="log-review-standalone-btn" className="btn btn-ghost" onClick={handleLogReview}>
+            + Log Post-Show Review
+          </button>
+          <button id="new-plan-from-history-btn" className="btn btn-gold" onClick={handleNewPlan}>
+            + New Plan
+          </button>
+        </div>
       </div>
 
       {/* Filter bar */}
