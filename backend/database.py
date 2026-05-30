@@ -3,6 +3,7 @@ Dual connection pool:
   get_m3_pool()  → Azure PostgreSQL (polynovea_m3)  — full read/write
   get_m2_pool()  → AWS RDS (polynovea_module2)      — read + write to m3_* tables only
 """
+import json
 import os
 from typing import AsyncGenerator
 
@@ -114,21 +115,64 @@ async def fetch_m2_venue_context(venue_id: int) -> dict:
     }
 
 
-async def fetch_m2_venue_list() -> list[dict]:
+async def sync_venues_from_m2() -> int:
     """
-    Returns all active venues from M2 RDS for the venue search bar.
-    Returns empty list if M2 pool is not available.
+    Pulls all venues from M2 RDS and upserts into m3_venues.
+    Called at backend startup and via POST /api/venues/sync.
+    Returns the number of venues synced.
+    M2 unavailable → logs warning, returns 0 (non-fatal).
     """
-    pool = get_m2_pool()
-    if pool is None:
-        return []
+    m2_pool = get_m2_pool()
+    if m2_pool is None:
+        print("WARNING: sync_venues_from_m2 skipped — M2 pool not available.")
+        return 0
+
+    async with m2_pool.acquire() as m2_conn:
+        rows = await m2_conn.fetch(
+            "SELECT id, name, area, city, types FROM venues ORDER BY id ASC"
+        )
+
+    if not rows:
+        return 0
+
+    m3_pool = get_m3_pool()
+    async with m3_pool.acquire() as m3_conn:
+        await m3_conn.executemany(
+            """
+            INSERT INTO m3_venues (venue_id, venue_name, area, city, types, last_synced)
+            VALUES ($1, $2, $3, $4, $5::jsonb, NOW())
+            ON CONFLICT (venue_id) DO UPDATE
+                SET venue_name  = EXCLUDED.venue_name,
+                    area        = EXCLUDED.area,
+                    city        = EXCLUDED.city,
+                    types       = EXCLUDED.types,
+                    last_synced = EXCLUDED.last_synced
+            """,
+            [
+                (r["id"], r["name"], r["area"], r["city"],
+                 json.dumps(r["types"]) if r["types"] is not None else None)
+                for r in rows
+            ],
+        )
+
+    print(f"sync_venues_from_m2: {len(rows)} venues synced from M2.")
+    return len(rows)
+
+
+async def fetch_m3_venue_list() -> list[dict]:
+    """
+    Returns all active venues from the local m3_venues table.
+    m3_venues is populated by sync_venues_from_m2() at startup.
+    Fast — no cross-DB call on the hot path.
+    """
+    pool = get_m3_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT id, name, area, city, types
-            FROM venues
-            WHERE city IN ('Mumbai', 'Navi Mumbai', 'Thane')
-            ORDER BY name ASC
-            """,
+            SELECT venue_id AS id, venue_name AS name, area, city, types
+            FROM m3_venues
+            WHERE active = TRUE
+            ORDER BY venue_name ASC
+            """
         )
     return [dict(r) for r in rows]
