@@ -1,7 +1,9 @@
-import { useMemo } from 'react'
-import { useSEStore, MOCK_VENUES } from '../store/seStore'
+import { useMemo, useState, useEffect } from 'react'
+import { useSEStore, computeDurationHint } from '../store/seStore'
 import type { Venue } from '../store/seStore'
 import './VenueSelector.css'
+
+const PHASE_COUNTS = [2, 3, 4, 5] as const
 
 const CROWD_SIZES = [
   { value: 'intimate', label: 'Intimate (<50)' },
@@ -31,15 +33,48 @@ export function VenueSelector() {
     setPlanScreen, startGeneration,
   } = useSEStore()
 
+  const [venues, setVenues] = useState<Venue[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let active = true
+    fetch('/api/venues')
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to fetch')
+        return res.json()
+      })
+      .then((data) => {
+        if (active) {
+          setVenues(data)
+          setLoading(false)
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setError('Could not load venues')
+          setLoading(false)
+        }
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
   const filtered = useMemo(() => {
-    if (!venueSearch.trim()) return MOCK_VENUES
+    if (!venueSearch.trim()) return venues
     const q = venueSearch.toLowerCase()
-    return MOCK_VENUES.filter(
+    return venues.filter(
       (v) => v.name.toLowerCase().includes(q) || v.area.toLowerCase().includes(q) || v.city.toLowerCase().includes(q)
     )
-  }, [venueSearch])
+  }, [venueSearch, venues])
 
   const canGenerate = !!(selectedVenue && sessionContext.date)
+
+  const durationHint = useMemo(
+    () => computeDurationHint(sessionContext.startTime, sessionContext.endTime, sessionContext.phaseCount),
+    [sessionContext.startTime, sessionContext.endTime, sessionContext.phaseCount],
+  )
 
   function handleGenerate() {
     if (!canGenerate) return
@@ -76,12 +111,17 @@ export function VenueSelector() {
                   />
                 </div>
                 <div className="vs-venue-list">
-                  {filtered.length === 0 && (
+                  {loading ? (
+                    <p className="vs-empty">Loading venues...</p>
+                  ) : error ? (
+                    <p className="vs-empty" style={{ color: '#ef4444' }}>{error}</p>
+                  ) : filtered.length === 0 ? (
                     <p className="vs-empty">No venues match "{venueSearch}"</p>
+                  ) : (
+                    filtered.map((v) => (
+                      <VenueCard key={v.id} venue={v} onSelect={selectVenue} />
+                    ))
                   )}
-                  {filtered.map((v) => (
-                    <VenueCard key={v.id} venue={v} onSelect={selectVenue} />
-                  ))}
                 </div>
               </>
             )}
@@ -104,6 +144,51 @@ export function VenueSelector() {
                   value={sessionContext.date}
                   onChange={(e) => setSessionContext({ date: e.target.value })}
                 />
+              </div>
+
+              {/* Show times */}
+              <div className="vs-field">
+                <label className="field-label">Show Times</label>
+                <div className="vs-time-row">
+                  <div className="vs-time-field">
+                    <span className="vs-time-label">Start</span>
+                    <input
+                      id="show-start-time"
+                      type="time"
+                      className="field-input"
+                      value={sessionContext.startTime}
+                      onChange={(e) => setSessionContext({ startTime: e.target.value })}
+                    />
+                  </div>
+                  <span className="vs-time-sep">→</span>
+                  <div className="vs-time-field">
+                    <span className="vs-time-label">End</span>
+                    <input
+                      id="show-end-time"
+                      type="time"
+                      className="field-input"
+                      value={sessionContext.endTime}
+                      onChange={(e) => setSessionContext({ endTime: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Phase count */}
+              <div className="vs-field">
+                <label className="field-label">Phases</label>
+                <div className="seg-control" style={{ width: '100%' }}>
+                  {PHASE_COUNTS.map((n) => (
+                    <button
+                      key={n}
+                      id={`phase-count-${n}`}
+                      className={`seg-btn${sessionContext.phaseCount === n ? ' active' : ''}`}
+                      style={{ flex: 1 }}
+                      onClick={() => setSessionContext({ phaseCount: n })}
+                    >{n}</button>
+                  ))}
+                </div>
+                <p className="vs-duration-hint">{durationHint}</p>
               </div>
 
               {/* Crowd size */}
@@ -206,8 +291,8 @@ function VenueCard({ venue, onSelect }: { venue: Venue; onSelect: (v: Venue) => 
       <div className="vs-venue-meta">
         {venue.area} · {venue.city}
         <span className="vs-venue-types">
-          {venue.types.map((t) => (
-            <span key={t} className="vs-type-chip">{t.replace('_', ' ')}</span>
+          {(venue.display_tags ?? venue.types).map((t) => (
+            <span key={t} className="vs-type-chip">{t.replace(/_/g, ' ')}</span>
           ))}
         </span>
       </div>

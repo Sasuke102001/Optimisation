@@ -9,6 +9,7 @@ from typing import AsyncGenerator
 
 import asyncpg
 from dotenv import load_dotenv
+from venue_types import map_venue_types, venue_type_cascade
 
 load_dotenv()
 
@@ -137,23 +138,36 @@ async def sync_venues_from_m2() -> int:
 
     m3_pool = get_m3_pool()
     async with m3_pool.acquire() as m3_conn:
+        records = []
+        for r in rows:
+            raw = r["types"]
+            raw_list: list[str] = raw if isinstance(raw, list) else json.loads(raw or "[]")
+            display = map_venue_types(raw_list)
+            cascade = venue_type_cascade(raw_list)
+            records.append((
+                r["id"], r["name"], r["area"], r["city"],
+                json.dumps(raw_list),
+                json.dumps(display),
+                display[0] if display else None,
+                json.dumps(cascade),
+            ))
+
         await m3_conn.executemany(
             """
-            INSERT INTO m3_venues (venue_id, venue_name, area, city, types, last_synced)
-            VALUES ($1, $2, $3, $4, $5::jsonb, NOW())
+            INSERT INTO m3_venues (venue_id, venue_name, area, city, types,
+                                   display_tags, primary_type, cascade_types, last_synced)
+            VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8::jsonb, NOW())
             ON CONFLICT (venue_id) DO UPDATE
-                SET venue_name  = EXCLUDED.venue_name,
-                    area        = EXCLUDED.area,
-                    city        = EXCLUDED.city,
-                    types       = EXCLUDED.types,
-                    last_synced = EXCLUDED.last_synced
+                SET venue_name    = EXCLUDED.venue_name,
+                    area          = EXCLUDED.area,
+                    city          = EXCLUDED.city,
+                    types         = EXCLUDED.types,
+                    display_tags  = EXCLUDED.display_tags,
+                    primary_type  = EXCLUDED.primary_type,
+                    cascade_types = EXCLUDED.cascade_types,
+                    last_synced   = EXCLUDED.last_synced
             """,
-            [
-                (r["id"], r["name"], r["area"], r["city"],
-                 json.dumps(r["types"]) if isinstance(r["types"], list)
-                 else r["types"])  # already a JSON string from M2 TEXT column
-                for r in rows
-            ],
+            records,
         )
 
     print(f"sync_venues_from_m2: {len(rows)} venues synced from M2.")
@@ -170,22 +184,31 @@ async def fetch_m3_venue_list() -> list[dict]:
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT venue_id AS id, venue_name AS name, area, city, types
+            SELECT venue_id AS id, venue_name AS name, area, city,
+                   types, display_tags, primary_type, cascade_types
             FROM m3_venues
             WHERE active = TRUE
             ORDER BY venue_name ASC
             """
         )
+
+    def _parse_jsonb(val: str | list | None, fallback: list) -> list:
+        if isinstance(val, list):
+            return val
+        if isinstance(val, str):
+            try:
+                return json.loads(val)
+            except Exception:
+                return fallback
+        return fallback
+
     result = []
     for r in rows:
         d = dict(r)
-        t = d.get('types')
-        if isinstance(t, str):
-            try:
-                d['types'] = json.loads(t)
-            except Exception:
-                d['types'] = []
-        elif t is None:
-            d['types'] = []
+        raw = _parse_jsonb(d.get('types'), [])
+        d['types'] = raw
+        d['display_tags'] = _parse_jsonb(d.get('display_tags'), map_venue_types(raw))
+        d['primary_type'] = d.get('primary_type') or (d['display_tags'][0] if d['display_tags'] else None)
+        d['cascade_types'] = _parse_jsonb(d.get('cascade_types'), venue_type_cascade(raw))
         result.append(d)
     return result
