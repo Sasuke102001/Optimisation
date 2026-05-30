@@ -1,77 +1,15 @@
-import { useEffect, useRef } from 'react'
 import { useSEStore } from '../store/seStore'
 import type { AgentStatus } from '../store/seStore'
 import './PlanGeneration.css'
 
-// Simulated timing for each agent (ms from start)
-const STAGE1_DELAYS: Record<number, number> = { 1: 800, 2: 1100, 3: 900, 4: 1300 }
-const STAGE2_DELAYS: Record<number, number> = { 5: 1800, 6: 2600 }
-
-const MOCK_PLAN_FRAGMENT = `
-## Night Arc — Todi Mill Social · Saturday, 21 Jun 2025
-
-**Opening Phase** (9:00–10:00 PM) — Warm entry, ambient social priming
-- BPM: 105–112 · Key: F major · Mode: Ionian
-- Sub-bass: 55–70Hz at nominal, no boost
-- Brainwave target: Low-alpha 8–9Hz (relaxed, aware)
-
-**Build Phase** (10:00–11:00 PM) — Momentum shift, floor activation
-- BPM: 118–124 · Key: A minor · Mode: Aeolian
-- Sub-bass: 60–80Hz +2dB
-- Brainwave target: High-alpha 10–12Hz (socially engaged)
-
-**Peak Phase** (11:00 PM–1:00 AM) — Full release, sustained energy
-- BPM: 128–134 · Key: D minor · Mode: Dorian
-- Sub-bass: 65–85Hz +3dB, stacked with 40Hz rumble
-- Brainwave target: Low-beta 14–16Hz (motor priming)
-- Chord structure: i–VII–VI–VII cycling 8-bar phrases
-
-**Wind Down Phase** (1:00–2:00 AM) — Graceful close
-- BPM: 110–116 · Key: G major · Mode: Mixolydian
-- Sub-bass: taper to 55–65Hz, nominal
-- Brainwave target: Alpha bridge 9–10Hz
-`.trim()
-
 export function PlanGeneration() {
   const {
-    agents, updateAgentStatus,
-    generationStatus, setGenerationStatus,
-    setPlanScreen, resetGeneration, selectedVenue,
+    agents,
+    generationStatus,
+    resetGeneration,
+    selectedVenue,
+    planOutput,
   } = useSEStore()
-
-  const ranRef = useRef(false)
-
-  useEffect(() => {
-    if (ranRef.current) return
-    ranRef.current = true
-
-    // Stage 1 — agents 1–4 run in parallel
-    ;[1, 2, 3, 4].forEach((id) => {
-      updateAgentStatus(id, 'running')
-      setTimeout(() => updateAgentStatus(id, 'done'), STAGE1_DELAYS[id])
-    })
-
-    // After stage 1 completes → start stage 2
-    const stage1Done = Math.max(...Object.values(STAGE1_DELAYS))
-    setTimeout(() => {
-      setGenerationStatus('stage_2_running')
-      ;[5, 6].forEach((id) => {
-        setTimeout(() => updateAgentStatus(id, 'running'), 0)
-        setTimeout(
-          () => updateAgentStatus(id, 'done'),
-          STAGE2_DELAYS[id] - STAGE1_DELAYS[4]
-        )
-      })
-    }, stage1Done)
-
-    // Complete
-    const total = stage1Done + STAGE2_DELAYS[6]
-    setTimeout(() => {
-      setGenerationStatus('complete')
-      setTimeout(() => setPlanScreen('show_plan'), 600)
-    }, total)
-
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="pg-root fade-in">
@@ -115,7 +53,7 @@ export function PlanGeneration() {
           </div>
 
           <div className="pg-stage-info">
-            <div className={`pg-stage${generationStatus === 'stage_1_running' ? ' pg-stage--active' : generationStatus !== 'idle' ? ' pg-stage--done' : ''}`}>
+            <div className={`pg-stage${generationStatus === 'stage_1_running' ? ' pg-stage--active' : generationStatus !== 'idle' && generationStatus !== 'error' ? ' pg-stage--done' : ''}`}>
               <span className="pg-stage-dot" />
               Stage 1 — Parallel KAG/RAG
             </div>
@@ -130,8 +68,14 @@ export function PlanGeneration() {
         {/* Synthesis stream area */}
         <div className="card pg-stream-card">
           <p className="field-label" style={{ marginBottom: 14 }}>Synthesis Stream</p>
-          {generationStatus === 'complete' ? (
-            <pre className="pg-stream-output fade-in">{MOCK_PLAN_FRAGMENT}</pre>
+          {generationStatus === 'complete' && planOutput ? (
+            <pre className="pg-stream-output fade-in">{planOutput.rawBrief}</pre>
+          ) : generationStatus === 'error' ? (
+            <div className="pg-stream-error fade-in" style={{ padding: '20px 0' }}>
+              <p className="error-text" style={{ color: '#ef4444', fontSize: '13px', lineHeight: '1.5' }}>
+                {planOutput?.rawBrief || 'An error occurred during plan generation.'}
+              </p>
+            </div>
           ) : (
             <div className="pg-stream-placeholder">
               <div className="pg-stream-spinner" />

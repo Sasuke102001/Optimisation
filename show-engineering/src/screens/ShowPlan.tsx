@@ -6,6 +6,7 @@ import {
   PHASE_PRESCRIPTIONS,
   PHASE_LIGHTING_DATA,
 } from '../store/seStore'
+import type { ReferenceTrack } from '../store/seStore'
 import { ConversationalPanel } from './ConversationalPanel'
 import './ShowPlan.css'
 
@@ -98,6 +99,16 @@ function phaseDuration(startStr: string, endStr: string): string {
   return `${h} hr ${m} min`
 }
 
+const getPhaseEnergy = (name: string) => {
+  const normalized = name.trim().toLowerCase()
+  if (normalized.includes('opening')) return PHASE_ENERGY['Opening']
+  if (normalized.includes('warm')) return PHASE_ENERGY['Warm Up']
+  if (normalized.includes('build')) return PHASE_ENERGY['Build']
+  if (normalized.includes('peak')) return PHASE_ENERGY['Peak']
+  if (normalized.includes('wind')) return PHASE_ENERGY['Wind Down']
+  return 50
+}
+
 // ─── Energy Curve SVG ─────────────────────────────────────────────────────────
 
 function EnergyCurve({ labels }: { labels: string[] }) {
@@ -109,7 +120,7 @@ function EnergyCurve({ labels }: { labels: string[] }) {
   // One point per phase, evenly spaced horizontally
   const pts = labels.map((label, i) => ({
     x: PAD + (i / (n - 1 || 1)) * (W - PAD * 2),
-    y: H - PAD - ((PHASE_ENERGY[label] ?? 50) / 100) * (H - PAD * 2),
+    y: H - PAD - (getPhaseEnergy(label) / 100) * (H - PAD * 2),
   }))
 
   // Build smooth bezier path
@@ -171,6 +182,7 @@ export function ShowPlan() {
     selectedVenue, sessionContext,
     manualBoundaries, setBoundary, resetBoundaries,
     resetGeneration, setConversationalPanel, conversationalPanelOpen,
+    planOutput,
   } = useSEStore()
 
   const [expandedIntervention, setExpandedIntervention] = useState<number | null>(null)
@@ -222,18 +234,58 @@ export function ShowPlan() {
       <section className="sp-section">
         <h2 className="sp-section-title clash">Tonight at a Glance</h2>
         <div className="sp-qr-strip">
-          {phases.map((p) => (
-            <div key={p.label} className="sp-qr-cell">
-              <div className="sp-qr-cell-top">
-                <span className="sp-qr-dot" style={{ background: p.color }} />
-                <span className="sp-qr-name">{p.label}</span>
-                <span className="sp-qr-time">{p.timeRange}</span>
+          {phases.map((p, idx) => {
+            const getActionLine = (pLabel: string, iIdx: number) => {
+              if (planOutput?.phaseArc && planOutput.phaseArc.length > 0) {
+                const apiItem = planOutput.phaseArc.find(item => item.phase_name.toLowerCase() === pLabel.toLowerCase())
+                if (apiItem) return apiItem.action_line
+                if (planOutput.phaseArc[iIdx]) return planOutput.phaseArc[iIdx].action_line
+              }
+              return QR_ACTION[pLabel] ?? '—'
+            }
+
+            return (
+              <div key={p.label} className="sp-qr-cell">
+                <div className="sp-qr-cell-top">
+                  <span className="sp-qr-dot" style={{ background: p.color }} />
+                  <span className="sp-qr-name">{p.label}</span>
+                  <span className="sp-qr-time">{p.timeRange}</span>
+                </div>
+                <div className="sp-qr-action">{getActionLine(p.label, idx)}</div>
               </div>
-              <div className="sp-qr-action">{QR_ACTION[p.label] ?? '—'}</div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </section>
+
+      {/* ── Council Brief Card (sits above Phase Arc) ── */}
+      {planOutput?.councilBrief && (
+        <section className="sp-section">
+          <h2 className="sp-section-title clash">Council Brief</h2>
+          <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <div className="sp-brief-row" style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+              <span className="field-label" style={{ width: '120px', flexShrink: 0, marginTop: '2px', color: 'var(--text-disabled)' }}>State</span>
+              <span style={{ fontSize: '13.5px', color: 'var(--text-primary)' }}>{planOutput.councilBrief.state}</span>
+            </div>
+            <div className="sp-brief-row" style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+              <span className="field-label" style={{ width: '120px', flexShrink: 0, marginTop: '2px', color: 'var(--text-disabled)' }}>Mechanism</span>
+              <span style={{ fontSize: '13.5px', color: 'var(--text-secondary)' }}>{planOutput.councilBrief.mechanism}</span>
+            </div>
+            <div className="sp-brief-row" style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+              <span className="field-label" style={{ width: '120px', flexShrink: 0, marginTop: '2px', color: 'var(--text-disabled)' }}>Lever</span>
+              <span style={{ fontSize: '13.5px', color: 'var(--text-primary)' }}>{planOutput.councilBrief.lever}</span>
+            </div>
+            <div className="sp-brief-row" style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '10px 14px', background: 'rgba(230, 211, 163, 0.05)', borderLeft: '3px solid var(--gold)', borderRadius: '4px' }}>
+              <span className="field-label" style={{ width: '106px', flexShrink: 0, marginTop: '2px', color: 'var(--gold)' }}>Action</span>
+              <span style={{ fontSize: '13.5px', color: 'var(--gold)', fontWeight: 600 }}>{planOutput.councilBrief.action}</span>
+            </div>
+            <div className="sp-brief-row" style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+              <span className="field-label" style={{ width: '120px', flexShrink: 0, marginTop: '2px', color: 'var(--text-disabled)' }}>Signal</span>
+              <span style={{ fontSize: '13.5px', color: 'var(--text-secondary)' }}>{planOutput.councilBrief.signal}</span>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ── Part 2 + 3: Phase Arc (replaces Night Arc + BPM sections) ── */}
       <section className="sp-section sp-phase-arc">
@@ -258,6 +310,25 @@ export function ShowPlan() {
             const transKey = i < phases.length - 1 ? `${p.label}→${phases[i + 1].label}` : null
             const transList = transKey ? (PHASE_TRANSITIONS[transKey] ?? []) : null
 
+            // Resolve real prescription and watch signals if available
+            let bpm = rx?.bpm
+            let chord = rx?.chord
+            let key = rx?.key
+            let bass = rx?.bass
+            let watchFor = signals
+
+            if (planOutput?.phaseArc && planOutput.phaseArc.length > 0) {
+              const apiItem = planOutput.phaseArc.find(item => item.phase_name.toLowerCase() === p.label.toLowerCase())
+                ?? planOutput.phaseArc[i]
+              if (apiItem) {
+                bpm = apiItem.bpm
+                chord = apiItem.chord
+                key = apiItem.key
+                bass = apiItem.bass
+                watchFor = apiItem.watch_for && apiItem.watch_for.length > 0 ? apiItem.watch_for : watchFor
+              }
+            }
+
             return (
               <Fragment key={p.label}>
                 {/* Phase card */}
@@ -278,12 +349,12 @@ export function ShowPlan() {
                   <div className="sp-pc-divider" />
 
                   {/* BPM + music prescription */}
-                  {rx ? (
+                  {bpm ? (
                     <>
-                      <div className="sp-pc-bpm">{rx.bpm} <span className="sp-pc-bpm-unit">BPM</span></div>
-                      <div className="sp-pc-row"><span className="sp-pc-k">Chord</span><span className="sp-pc-v">{rx.chord}</span></div>
-                      <div className="sp-pc-row"><span className="sp-pc-k">Key</span><span className="sp-pc-v">{rx.key}</span></div>
-                      <div className="sp-pc-row"><span className="sp-pc-k">Sub-bass</span><span className="sp-pc-v">{rx.bass}</span></div>
+                      <div className="sp-pc-bpm">{bpm} <span className="sp-pc-bpm-unit">BPM</span></div>
+                      <div className="sp-pc-row"><span className="sp-pc-k">Chord</span><span className="sp-pc-v">{chord}</span></div>
+                      <div className="sp-pc-row"><span className="sp-pc-k">Key</span><span className="sp-pc-v">{key}</span></div>
+                      <div className="sp-pc-row"><span className="sp-pc-k">Sub-bass</span><span className="sp-pc-v">{bass}</span></div>
                     </>
                   ) : (
                     <p className="sp-pc-v" style={{ opacity: 0.4 }}>No prescription</p>
@@ -294,10 +365,62 @@ export function ShowPlan() {
                   {/* Watch For signals */}
                   <div className="sp-watch-label">WATCH FOR</div>
                   <ul className="sp-watch-list">
-                    {signals.map((s, si) => (
+                    {watchFor.map((s, si) => (
                       <li key={si} className="sp-watch-item">{s}</li>
                     ))}
                   </ul>
+
+                  {/* Reference Tracks table */}
+                  {(() => {
+                    let refTracks: ReferenceTrack[] = []
+                    if (planOutput?.phaseArc && planOutput.phaseArc.length > 0) {
+                      const apiItem = planOutput.phaseArc.find(item => item.phase_name.toLowerCase() === p.label.toLowerCase())
+                        ?? planOutput.phaseArc[i]
+                      if (apiItem?.reference_tracks && apiItem.reference_tracks.length > 0) {
+                        refTracks = apiItem.reference_tracks
+                      }
+                    }
+                    if (refTracks.length === 0) return null
+                    return (
+                      <div className="sp-ref-tracks-wrap">
+                        <div className="sp-pc-divider" style={{ marginBottom: 8 }} />
+                        <p className="sp-ref-tracks-label">Track Profiles</p>
+                        <table className="sp-ref-tracks-table">
+                          <thead>
+                            <tr>
+                              <th>BPM</th>
+                              <th>Key</th>
+                              <th>Chords</th>
+                              <th>Energy</th>
+                              <th>Why</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {refTracks.map((rt, rti) => {
+                              const energyClass = rt.energy_score < 70
+                                ? 'sp-rt-energy--low'
+                                : rt.energy_score <= 85
+                                  ? 'sp-rt-energy--mid'
+                                  : 'sp-rt-energy--high'
+                              return (
+                                <tr key={rti}>
+                                  <td className="sp-rt-bpm">{rt.bpm}</td>
+                                  <td className="sp-rt-key">{rt.key}</td>
+                                  <td className="sp-rt-chords">
+                                    {rt.chords.map((c, ci) => (
+                                      <span key={ci} className="sp-rt-chord-line">{c}</span>
+                                    ))}
+                                  </td>
+                                  <td className={`sp-rt-energy ${energyClass}`}>{rt.energy_score}</td>
+                                  <td className="sp-rt-why">{rt.why}</td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )
+                  })()}
 
                   {/* Boundary pill */}
                   {i < phases.length - 1 && (

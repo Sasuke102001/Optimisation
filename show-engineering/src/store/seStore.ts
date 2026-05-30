@@ -21,15 +21,49 @@ export type GenerationStatus =
 
 export type AgentStatus = 'waiting' | 'running' | 'done'
 
+export interface ReferenceTrack {
+  bpm: number
+  key: string
+  chords: string[]       // multiple entries if track has distinct chord sections
+  energy_score: number   // 1–100
+  why: string            // neurological/behavioural mechanism — not cosmetic
+}
+
+export interface PhaseArcItem {
+  phase_name: string
+  bpm: string
+  chord: string
+  key: string
+  bass: string
+  watch_for: string[]
+  action_line: string
+  reference_tracks: ReferenceTrack[]
+}
+
+export interface CouncilBrief {
+  state: string
+  mechanism: string
+  lever: string
+  action: string
+  signal: string
+}
+
+export interface PlanOutput {
+  councilBrief: CouncilBrief | null
+  phaseArc: PhaseArcItem[]
+  rawBrief: string
+  generatedAt: string
+}
+
 export interface Venue {
   id: number
   name: string
   area: string
   city: string
   types: string[]
-  display_tags: string[]
-  primary_type: string | null
-  cascade_types: string[]
+  display_tags?: string[]
+  primary_type?: string | null
+  cascade_types?: string[]
 }
 
 export interface SessionContext {
@@ -214,6 +248,7 @@ interface SEState {
   generationStatus: GenerationStatus
   agents: AgentRow[]
   conversationalPanelOpen: boolean
+  planOutput: PlanOutput | null
 
   setNavSection: (s: NavSection) => void
   setPlanScreen: (s: PlanScreen) => void
@@ -229,6 +264,7 @@ interface SEState {
   setConversationalPanel: (open: boolean) => void
   updateAgentStatus: (id: number, status: AgentStatus) => void
   setGenerationStatus: (s: GenerationStatus) => void
+  setPlanOutput: (output: PlanOutput) => void
 }
 
 // ─── Mock venue list ──────────────────────────────────────────────────────────
@@ -273,7 +309,7 @@ const DEFAULT_CONTEXT: SessionContext = {
 
 // ─── Store ────────────────────────────────────────────────────────────────────
 
-export const useSEStore = create<SEState>((set) => ({
+export const useSEStore = create<SEState>((set, get) => ({
   navSection: 'plan',
   planScreen: 'venue_selector',
   historyScreen: 'show_history',
@@ -287,6 +323,7 @@ export const useSEStore = create<SEState>((set) => ({
   generationStatus: 'idle',
   agents: INITIAL_AGENTS,
   conversationalPanelOpen: false,
+  planOutput: null,
 
   setNavSection: (s) => set({ navSection: s }),
   setPlanScreen: (s) => set({ planScreen: s }),
@@ -297,6 +334,7 @@ export const useSEStore = create<SEState>((set) => ({
     selectedVenue: null,
     sessionContext: { ...DEFAULT_CONTEXT },
     manualBoundaries: null,
+    planOutput: null,
   }),
   setSessionContext: (patch) =>
     set((s) => ({
@@ -314,14 +352,169 @@ export const useSEStore = create<SEState>((set) => ({
       return { manualBoundaries: next }
     }),
   resetBoundaries: () => set({ manualBoundaries: null }),
-  startGeneration: () =>
-    set({ generationStatus: 'stage_1_running', agents: INITIAL_AGENTS }),
+  startGeneration: async () => {
+    set({ generationStatus: 'stage_1_running', agents: INITIAL_AGENTS })
+    
+    const { selectedVenue, sessionContext, setPlanOutput, setPlanScreen, updateAgentStatus, setGenerationStatus } = get()
+    
+    if (!selectedVenue) {
+      set({ generationStatus: 'error' })
+      return
+    }
+
+    // Set all 4 Stage-1 agents to 'running'
+    const stage1AgentIds = [1, 2, 3, 4]
+    stage1AgentIds.forEach(id => updateAgentStatus(id, 'running'))
+
+    // Prepare API request body
+    const requestBody = {
+      venue_id: selectedVenue.id,
+      venue_name: selectedVenue.name,
+      area: selectedVenue.area || null,
+      city: selectedVenue.city || null,
+      primary_type: selectedVenue.primary_type || null,
+      cascade_types: selectedVenue.cascade_types || [],
+      session_number: 1, // hardcoded for now
+      show_date: sessionContext.date,
+      start_time: sessionContext.startTime || null,
+      end_time: sessionContext.endTime || null,
+      phase_count: sessionContext.phaseCount,
+      crowd_size: sessionContext.crowdSize || null,
+      crowd_type: sessionContext.crowdType || null,
+      show_type: sessionContext.showType || null,
+      notes: sessionContext.notes || null,
+      live_state: null,
+      mode: 'council'
+    }
+
+    let apiCompleted = false
+    let apiData: any = null
+    let apiError: any = null
+
+    const apiPromise = fetch('/api/show/brief', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestBody)
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          throw new Error(`Server returned ${res.status}: ${res.statusText}`)
+        }
+        return res.json()
+      })
+      .then((data) => {
+        apiCompleted = true
+        apiData = data
+      })
+      .catch((err) => {
+        apiCompleted = true
+        apiError = err
+      })
+
+    // Wait for ~1.5s OR until API completes, whichever is first/last
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(() => {
+        resolve()
+      }, 1500)
+
+      const checkInterval = setInterval(() => {
+        if (apiCompleted) {
+          clearInterval(checkInterval)
+          clearTimeout(timer)
+          resolve()
+        }
+      }, 100)
+    })
+
+    if (apiError) {
+      setGenerationStatus('error')
+      setPlanOutput({
+        councilBrief: null,
+        phaseArc: [],
+        rawBrief: `Error: ${apiError.message || apiError}`,
+        generatedAt: new Date().toISOString()
+      })
+      return
+    }
+
+    // Set Stage-1 agents to 'done', set generationStatus: 'stage_2_running', set agents 5–6 to 'running'
+    stage1AgentIds.forEach(id => updateAgentStatus(id, 'done'))
+    setGenerationStatus('stage_2_running')
+    const stage2AgentIds = [5, 6]
+    stage2AgentIds.forEach(id => updateAgentStatus(id, 'running'))
+
+    // Wait for the API to fully complete if it hasn't yet
+    const stage2Start = Date.now()
+    if (!apiCompleted) {
+      await apiPromise
+    }
+
+    if (apiError) {
+      setGenerationStatus('error')
+      setPlanOutput({
+        councilBrief: null,
+        phaseArc: [],
+        rawBrief: `Error: ${apiError.message || apiError}`,
+        generatedAt: new Date().toISOString()
+      })
+      return
+    }
+
+    // Ensure Stage 2 runs for at least 800ms to allow animations to show
+    const stage2Elapsed = Date.now() - stage2Start
+    if (stage2Elapsed < 800) {
+      await new Promise(resolve => setTimeout(resolve, 800 - stage2Elapsed))
+    }
+
+    // On response arrival, set agents 5–6 to 'done', generationStatus: 'complete'
+    stage2AgentIds.forEach(id => updateAgentStatus(id, 'done'))
+    setGenerationStatus('complete')
+
+    // Call setPlanOutput() with the parsed response
+    const mappedOutput: PlanOutput = {
+      councilBrief: apiData.council_brief ? {
+        state: apiData.council_brief.state,
+        mechanism: apiData.council_brief.mechanism,
+        lever: apiData.council_brief.lever,
+        action: apiData.council_brief.action,
+        signal: apiData.council_brief.signal
+      } : null,
+      phaseArc: (apiData.phase_arc || []).map((item: any) => ({
+        phase_name: item.phase_name,
+        bpm: item.bpm,
+        chord: item.chord,
+        key: item.key,
+        bass: item.bass,
+        watch_for: item.watch_for || [],
+        action_line: item.action_line,
+        reference_tracks: (item.reference_tracks || []).map((rt: any) => ({
+          bpm: rt.bpm,
+          key: rt.key,
+          chords: rt.chords || [],
+          energy_score: rt.energy_score,
+          why: rt.why,
+        })),
+      })),
+      rawBrief: apiData.brief,
+      generatedAt: apiData.generated_at
+    }
+
+    setPlanOutput(mappedOutput)
+
+    // After 600ms, call setPlanScreen('show_plan')
+    setTimeout(() => {
+      setPlanScreen('show_plan')
+    }, 600)
+  },
   resetGeneration: () =>
-    set({ generationStatus: 'idle', agents: INITIAL_AGENTS, planScreen: 'venue_selector', conversationalPanelOpen: false }),
+    set({ generationStatus: 'idle', agents: INITIAL_AGENTS, planScreen: 'venue_selector', conversationalPanelOpen: false, planOutput: null }),
   setConversationalPanel: (open) => set({ conversationalPanelOpen: open }),
   updateAgentStatus: (id, status) =>
     set((s) => ({
       agents: s.agents.map((a) => (a.id === id ? { ...a, status } : a)),
     })),
   setGenerationStatus: (status) => set({ generationStatus: status }),
+  setPlanOutput: (output) => set({ planOutput: output }),
 }))

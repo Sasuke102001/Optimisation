@@ -1,5 +1,5 @@
 import { useSessionStore } from '../store/sessionStore';
-import { ZONES, KPI_FAMILIES, getSignalSource } from '../types/constants';
+import { ZONES, KPI_FAMILIES } from '../types/constants';
 import type { RAGStatus } from '../types';
 
 export function useKPIState() {
@@ -15,49 +15,34 @@ export function useKPIState() {
     return !!loggedKpis[key];
   };
 
+  const SIGNAL_OPTIONS: Record<string, { options: string[], rag: string[] }> = {
+    is_anyone_dancing: { options: ['No', 'A few', 'Floor is alive'], rag: ['red', 'amber', 'green'] },
+    room_energy_level: { options: ['Dead', 'Building', 'Peak'], rag: ['red', 'amber', 'green'] },
+    groups_mixing: { options: ['No', 'Some', 'Yes'], rag: ['red', 'amber', 'green'] },
+    sound_level_working: { options: ['Too quiet', 'Right', 'Too loud'], rag: ['amber', 'green', 'red'] },
+    temperature_feeling: { options: ['Cold', 'Comfortable', 'Hot'], rag: ['amber', 'green', 'red'] },
+    atmosphere_right: { options: ['Off', 'Building', 'On'], rag: ['red', 'amber', 'green'] },
+    table_turnover: { options: ['Slow', 'Normal', 'Fast'], rag: ['red', 'amber', 'green'] },
+    dwell_behaviour: { options: ['Leaving early', 'Normal dwell', 'Long stays'], rag: ['red', 'amber', 'green'] },
+    bar_activity: { options: ['Dead', 'Active', 'Very busy'], rag: ['red', 'amber', 'green'] },
+    fatigue_signs: { options: ['Yes, dying', 'Getting tired', 'Fresh'], rag: ['red', 'amber', 'green'] },
+    overcrowding: { options: ['Yes, too packed', 'Busy', 'Fine'], rag: ['red', 'amber', 'green'] },
+    visible_discomfort: { options: ['Yes, several', 'One or two', 'No'], rag: ['red', 'amber', 'green'] }
+  };
+
   const getIndividualSignalStatus = (zoneId: string, kpiFamilyId: string, sigName: string): 'ok' | 'watch' | 'alert' => {
-    const source = getSignalSource(sigName);
-
-    if (source === 'manual') {
-      const val = manualSignals[`${zoneId}_${kpiFamilyId}_${sigName}`];
-      return (val as 'ok' | 'watch' | 'alert') || 'ok';
+    const val = manualSignals[`${zoneId}_${kpiFamilyId}_${sigName}`];
+    if (val) {
+      const optInfo = SIGNAL_OPTIONS[sigName];
+      const optIdx = optInfo ? optInfo.options.indexOf(val) : -1;
+      const rag = optIdx !== -1 ? optInfo.rag[optIdx] : 'green';
+      const ragMap: Record<string, 'ok' | 'watch' | 'alert'> = {
+        green: 'ok',
+        amber: 'watch',
+        red: 'alert'
+      };
+      return ragMap[rag] || 'ok';
     }
-
-    if (sigName === 'Sound level suitability') {
-      if (environment.sound === 'Very Loud') return 'watch';
-      return 'ok';
-    }
-    if (sigName === 'Thermal comfort') {
-      if (environment.temp === 'Hot' || environment.temp === 'Cold') return 'watch';
-      return 'ok';
-    }
-    if (sigName === 'Complaint rate') {
-      const count = environment.complaints.filter((c) => c.zone === zoneId).length;
-      if (count > 0) return 'watch';
-      return 'ok';
-    }
-    if (sigName === 'Incident clustering') {
-      const count = environment.complaints.filter((c) => c.zone === zoneId).length;
-      if (count > 1) return 'alert';
-      return 'ok';
-    }
-    if (sigName === 'Crowd density comfort') {
-      const net = flow.totals.entries - flow.totals.exits;
-      if (net > 150) return 'alert';
-      if (net > 100) return 'watch';
-      return 'ok';
-    }
-    if (sigName === 'Queue spillback risk') {
-      if (environment.queue.includes('Long')) return 'alert';
-      if (environment.queue.includes('Medium')) return 'watch';
-      return 'ok';
-    }
-    if (sigName === 'Table occupancy speed') {
-      const occupied = tables.filter((t) => t.occupied).length;
-      if (occupied < 5) return 'watch';
-      return 'ok';
-    }
-
     return 'ok';
   };
 
@@ -70,11 +55,14 @@ export function useKPIState() {
 
     if (fam) {
       for (const sig of fam.signals) {
-        if (getSignalSource(sig) === 'manual') {
-          const val = manualSignals[`${zoneId}_${kpiFamilyId}_${sig}`];
-          if (val === 'alert') {
+        const val = manualSignals[`${zoneId}_${kpiFamilyId}_${sig}`];
+        if (val) {
+          const optInfo = SIGNAL_OPTIONS[sig];
+          const optIdx = optInfo ? optInfo.options.indexOf(val) : -1;
+          const rag = optIdx !== -1 ? optInfo.rag[optIdx] : 'green';
+          if (rag === 'red') {
             manualStatus = 'alert';
-          } else if (val === 'watch' && manualStatus !== 'alert') {
+          } else if (rag === 'amber' && manualStatus !== 'alert') {
             manualStatus = 'watch';
           }
         }
@@ -83,44 +71,32 @@ export function useKPIState() {
 
     let autoStatus: 'ok' | 'watch' | 'alert' = 'ok';
     const activeComplaints = environment.complaints.filter((c) => c.zone === zoneId);
+    const occupiedCount = tables.filter((t) => t.occupied).length;
 
-    if (kpiFamilyId === 'complaints') {
+    if (kpiFamilyId === 'crowd_energy') {
+      if (environment.energy === 'Flat') autoStatus = 'alert';
+      else if (environment.energy === 'Relaxed') autoStatus = 'watch';
+    } else if (kpiFamilyId === 'environment') {
+      if (environment.sound === 'Very Loud') autoStatus = 'alert';
+      else if (environment.temp === 'Hot' || environment.temp === 'Cold') autoStatus = 'watch';
+    } else if (kpiFamilyId === 'commercial') {
+      if (occupiedCount < 5) autoStatus = 'watch';
+    } else if (kpiFamilyId === 'crowd_stress') {
       if (activeComplaints.length > 0) {
         const hasAlert = activeComplaints.some((c) => c.severity === 'alert');
         autoStatus = hasAlert ? 'alert' : 'watch';
       }
-    } else if (kpiFamilyId === 'flow') {
+      if (environment.queue.includes('Long')) autoStatus = 'alert';
+      else if (environment.queue.includes('Medium')) autoStatus = 'watch';
+      
       if (zoneId === 'entrance' || zoneId === 'queue') {
         const netDiff = flow.totals.entries - flow.totals.exits;
         if (netDiff > 150) autoStatus = 'alert';
         else if (netDiff > 100) autoStatus = 'watch';
       }
-    } else if (kpiFamilyId === 'service') {
-      if (zoneId === 'tables') {
-        const occupied = tables.filter((t) => t.occupied).length;
-        if (occupied >= 25) autoStatus = 'alert';
-        else if (occupied >= 18) autoStatus = 'watch';
+      if (environment.sound === 'Very Loud') {
+        if (autoStatus !== 'alert') autoStatus = 'watch';
       }
-      if (environment.queue.includes('Long')) autoStatus = 'alert';
-      else if (environment.queue.includes('Medium')) autoStatus = 'watch';
-    } else if (kpiFamilyId === 'engagement') {
-      if (environment.energy === 'Flat') autoStatus = 'alert';
-      else if (environment.energy === 'Relaxed') autoStatus = 'watch';
-    } else if (kpiFamilyId === 'overload') {
-      if (environment.sound === 'Very Loud') autoStatus = 'alert';
-      else if (environment.temp === 'Hot' || environment.temp === 'Cold') autoStatus = 'watch';
-      const longDwellers = tables.filter((t) => {
-        if (!t.occupied || !t.seatedTime) return false;
-        return Date.now() - t.seatedTime >= 90 * 60000;
-      }).length;
-      if (longDwellers >= 2) autoStatus = 'watch';
-    } else if (kpiFamilyId === 'commercial') {
-      const occupied = tables.filter((t) => t.occupied).length;
-      if (occupied > 22) autoStatus = 'ok';
-      else if (occupied < 5) autoStatus = 'watch';
-    } else if (kpiFamilyId === 'environment') {
-      if (environment.sound === 'Very Loud') autoStatus = 'watch';
-      if (environment.temp === 'Hot') autoStatus = 'watch';
     }
 
     if (manualStatus === 'alert' || autoStatus === 'alert') return 'alert';
@@ -137,9 +113,6 @@ export function useKPIState() {
     let hasAlert = false;
 
     zone.relevant.forEach((famId) => {
-      // Always compute worst-case status regardless of logging state —
-      // auto-derived signals (flow, environment, tables) are live and
-      // should surface as amber/red even before the operator logs a KPI card.
       const status = getCalculatedKpiStatus(zoneId, famId);
       if (status === 'alert') hasAlert = true;
       if (status === 'watch') hasWatch = true;

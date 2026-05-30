@@ -83,18 +83,59 @@ class SessionBriefResponse(BaseModel):
     generated_at: datetime
 
 
-# ─── Show Engineering ─────────────────────────────────────────────────────────
+class ReferenceTrack(BaseModel):
+    bpm: int                 # exact BPM, e.g. 124
+    key: str                 # short notation, e.g. "Am", "Em", "Gm"
+    chords: list[str]        # one entry per distinct section, e.g. ["Am-F-C-G", "Em-C-G-D"]
+    energy_score: int        # 1–100
+    why: str                 # mechanism — what this profile does to the crowd neurologically
+
+
+class PhaseArcItem(BaseModel):
+    phase_name: str          # "Opening", "Build", "Peak", "Wind Down"
+    start_time: str          # "21:00"
+    end_time: str            # "21:45"
+    bpm: str                 # "105–112"
+    chord: str               # "I–IV–V"
+    key: str                 # "F major — Ionian"
+    bass: str                # "55–70Hz · nominal"
+    watch_for: list[str]     # 2–3 bullet strings
+    action_line: str         # single-line phase instruction for the quick ref strip
+    reference_tracks: list[ReferenceTrack] = []   # 3–4 track profiles per phase
+
+
+class CouncilBrief(BaseModel):
+    state: str
+    mechanism: str
+    lever: str
+    action: str
+    signal: str
+
 
 class ShowBriefRequest(BaseModel):
     venue_id: int
+    venue_name: str
+    area: str | None = None
+    city: str | None = None
+    primary_type: str | None = None       # "Brewpub", "Night Club" — from m3_venues.primary_type
+    cascade_types: list[str] = []         # ["brewpub"] — from m3_venues.cascade_types
     session_number: int
-    show_type: str | None = None
-    live_state: dict[str, Any] | None = None
+    show_date: str                        # "2026-06-01"
+    start_time: str | None = None         # "21:00"
+    end_time: str | None = None           # "01:00"
+    phase_count: int = 4
+    crowd_size: str | None = None         # intimate / medium / large
+    crowd_type: str | None = None         # regular / corporate / college / mixed
+    show_type: str | None = None          # dj_night / live_band / open_mic / private_event
+    notes: str | None = None
+    live_state: dict | None = None
     mode: str = Field(default="council", pattern="^(council|fast)$")
 
 
 class ShowBriefResponse(BaseModel):
-    brief: str
+    brief: str                        # raw Council synthesis text (keep for logs)
+    council_brief: CouncilBrief | None = None
+    phase_arc: list[PhaseArcItem] = []
     venue_id: int
     session_number: int
     generated_at: datetime

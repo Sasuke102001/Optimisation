@@ -1,32 +1,28 @@
 export const ZONES = [
-  { id: 'entrance',    label: 'Entrance',    icon: '🚪', desc: 'Arrival, first impressions, initial flow',   relevant: ['flow', 'engagement', 'environment'] },
-  { id: 'queue',       label: 'Queue',       icon: '🚶', desc: 'Queue management, wait behaviour, pressure', relevant: ['flow', 'service', 'complaints'] },
-  { id: 'main_bar',    label: 'Main Bar',    icon: '🥃', desc: 'Primary service, ordering, throughput',      relevant: ['service', 'commercial', 'complaints'] },
-  { id: 'dancefloor',  label: 'Dancefloor',  icon: '🎵', desc: 'Focal energy zone, engagement epicentre',    relevant: ['engagement', 'overload', 'environment'] },
-  { id: 'circulation', label: 'Corridor',    icon: '↔',  desc: 'Circulation flow, connector zones',          relevant: ['flow', 'overload'] },
-  { id: 'exits',       label: 'Exits',       icon: '🚪', desc: 'Exit behaviour, egress flow, drift signals', relevant: ['flow', 'engagement'] },
-  { id: 'quiet',       label: 'Quiet Zone',  icon: '🌙', desc: 'Recovery, decompression, low-stimulus',      relevant: ['overload', 'environment'] },
-  { id: 'tables',      label: 'Seating',     icon: '🪑', desc: 'Tables, dwell behaviour, table spend',       relevant: ['commercial', 'service', 'overload'] }
+  { id: 'entrance',    label: 'Entrance',    icon: '🚪', desc: 'Arrival, first impressions, initial flow',   relevant: ['crowd_energy', 'environment', 'crowd_stress'] },
+  { id: 'queue',       label: 'Queue',       icon: '🚶', desc: 'Queue management, wait behaviour, pressure', relevant: ['crowd_stress', 'commercial'] },
+  { id: 'main_bar',    label: 'Main Bar',    icon: '🥃', desc: 'Primary service, ordering, throughput',      relevant: ['commercial', 'crowd_stress'] },
+  { id: 'dancefloor',  label: 'Dancefloor',  icon: '🎵', desc: 'Focal energy zone, engagement epicentre',    relevant: ['crowd_energy', 'environment', 'crowd_stress'] },
+  { id: 'circulation', label: 'Corridor',    icon: '↔',  desc: 'Circulation flow, connector zones',          relevant: ['crowd_stress'] },
+  { id: 'exits',       label: 'Exits',       icon: '🚪', desc: 'Exit behaviour, egress flow, drift signals', relevant: ['crowd_energy', 'crowd_stress'] },
+  { id: 'quiet',       label: 'Quiet Zone',  icon: '🌙', desc: 'Recovery, decompression, low-stimulus',      relevant: ['crowd_stress', 'environment'] },
+  { id: 'tables',      label: 'Seating',     icon: '🪑', desc: 'Tables, dwell behaviour, table spend',       relevant: ['commercial', 'crowd_stress'] }
 ];
 
 export const KPI_FAMILIES = [
-  { id: 'flow',        name: 'Flow',               icon: '🌊', desc: 'Movement, density, congestion',           signals: ['Crowd density comfort', 'Queue spillback risk', 'Directional flow stability'] },
-  { id: 'service',     name: 'Service',             icon: '⚡', desc: 'Speed, load, throughput, friction',       signals: ['Service speed', 'Queue pressure', 'Staff load pressure'] },
-  { id: 'engagement',  name: 'Engagement',          icon: '🔥', desc: 'Energy, participation, momentum',         signals: ['Engagement level', 'Dancefloor activation', 'Social energy'] },
-  { id: 'overload',    name: 'Overload / Recovery', icon: '⚠️', desc: 'Fatigue, sensory load, overstimulation',  signals: ['Fatigue signals', 'Sensory load pressure', 'Overstimulation risk'] },
-  { id: 'complaints',  name: 'Complaints & Risk',   icon: '🚨', desc: 'Issues, contradictions, friction hotspots',signals: ['Complaint rate', 'Incident clustering', 'Hotspot intensity'] },
-  { id: 'commercial',  name: 'Commercial',          icon: '💠', desc: 'Spend intent, conversion, retention',     signals: ['Commercial momentum', 'Table occupancy speed', 'Abandonment behaviour'] },
-  { id: 'environment', name: 'Environment',         icon: '🌡️', desc: 'Sound, temperature, atmosphere',         signals: ['Sound level suitability', 'Thermal comfort', 'Atmosphere coherence'] }
+  { id: 'crowd_energy',  name: 'Crowd Energy',       icon: '⚡', desc: 'Energy level, dancefloor activation, social mixing', signals: ['is_anyone_dancing', 'room_energy_level', 'groups_mixing'] },
+  { id: 'environment',   name: 'Environment',        icon: '🌡️', desc: 'Sound level, temperature, atmosphere coherence',     signals: ['sound_level_working', 'temperature_feeling', 'atmosphere_right'] },
+  { id: 'commercial',    name: 'Commercial Signal',  icon: '💰', desc: 'Table turnover, dwell behaviour, bar activity',      signals: ['table_turnover', 'dwell_behaviour', 'bar_activity'] },
+  { id: 'crowd_stress',  name: 'Crowd Stress',       icon: '⚠️', desc: 'Fatigue signs, overcrowding, comfort signals',       signals: ['fatigue_signs', 'overcrowding', 'visible_discomfort'] }
 ];
+
 export function getSignalSource(name: string): 'manual' | 'sensor' | 'derived' {
   const manuals = [
-    'Crowd density comfort', 'Engagement level', 'Dancefloor activation', 'Social energy',
-    'Service speed', 'Queue pressure', 'Staff load pressure', 'Fatigue signals',
-    'Sensory load pressure', 'Overstimulation risk', 'Hotspot intensity',
-    'Commercial momentum', 'Abandonment behaviour', 'Atmosphere coherence'
+    'is_anyone_dancing', 'room_energy_level', 'groups_mixing',
+    'sound_level_working', 'temperature_feeling', 'atmosphere_right',
+    'table_turnover', 'dwell_behaviour', 'bar_activity',
+    'fatigue_signs', 'overcrowding', 'visible_discomfort'
   ];
-  const sensors = ['Sound level suitability', 'Thermal comfort'];
   if (manuals.includes(name)) return 'manual';
-  if (sensors.includes(name)) return 'sensor';
   return 'derived';
 }

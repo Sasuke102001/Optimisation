@@ -20,15 +20,15 @@ class OpenAIStructuredExtractor:
         self.model = model
 
     def extract(self, prompt: str, schema: type[SchemaT]) -> SchemaT:
-        return self.client.responses.create(
+        return self.client.chat.completions.create(
             model=self.model,
             response_model=schema,
-            input=[{"role": "user", "content": prompt}],
+            messages=[{"role": "user", "content": prompt}],
         )
 
 
 class NvidiaStructuredExtractor(OpenAIStructuredExtractor):
-    def __init__(self, model: str = "deepseek-v4-pro", base_url: str | None = None) -> None:
+    def __init__(self, model: str = "deepseek-ai/deepseek-v4-pro", base_url: str | None = None) -> None:
         resolved_base_url = base_url or os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")
         super().__init__(model=model, api_key_env="NVIDIA_API_KEY", base_url=resolved_base_url)
 
@@ -39,5 +39,5 @@ def build_structured_extractor(provider: str, model: str = "", base_url: str = "
     if provider == "openai":
         return OpenAIStructuredExtractor(model=model or "gpt-4.1-mini", base_url=base_url or None)
     if provider == "nvidia":
-        return NvidiaStructuredExtractor(model=model or "deepseek-v4-pro", base_url=base_url or None)
+        return NvidiaStructuredExtractor(model=model or "deepseek-ai/deepseek-v4-pro", base_url=base_url or None)
     raise ValueError(f"Unsupported llm provider: {provider}")

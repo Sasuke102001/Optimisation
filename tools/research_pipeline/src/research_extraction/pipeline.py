@@ -85,8 +85,28 @@ def run_pipeline(config: PipelineConfig) -> PipelineOutputs:
     evidence_objects: list[EvidenceObject] = []
     contradiction_objects: list[ContradictionObject] = []
 
-    for section in sections:
-        bundle = extract_all(section, classification_by_section[section.section_id], config)
+    from concurrent.futures import ThreadPoolExecutor
+    import threading
+
+    total_sections = len(sections)
+    counter = 0
+    lock = threading.Lock()
+
+    print(f"[research-extraction] extracting from {total_sections} sections using ThreadPoolExecutor(max_workers=10)...", flush=True)
+
+    def process_section(section):
+        nonlocal counter
+        res = extract_all(section, classification_by_section[section.section_id], config)
+        with lock:
+            counter += 1
+            if counter % 50 == 0 or counter == total_sections:
+                print(f"[research-extraction] processed {counter}/{total_sections} sections...", flush=True)
+        return res
+
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        bundles = list(executor.map(process_section, sections))
+
+    for bundle in bundles:
         variables.extend(bundle.variables)
         states.extend(bundle.states)
         relationships.extend(bundle.relationships)

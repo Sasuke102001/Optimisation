@@ -13,7 +13,7 @@ export function SessionSetup() {
   const totalTables = tableConfig.two + tableConfig.four + tableConfig.six;
   const isButtonDisabled = !session.venue.trim() || totalTables === 0;
 
-  const handleOpenSession = () => {
+  const handleOpenSession = async () => {
     if (!session.venue.trim()) {
       showToast('⚠ Enter a venue name to start', 'warn');
       return;
@@ -23,7 +23,7 @@ export function SessionSetup() {
       return;
     }
 
-    const ok = startSession(operator);
+    const ok = await startSession(operator);
     if (ok) {
       showToast(`Session opened at ${session.venue}`, 'ok');
     }

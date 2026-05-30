@@ -6,7 +6,7 @@ import { showToast } from '../../shared/Toast/ToastRack';
 import styles from './EnvironmentTab.module.css';
 
 export function EnvironmentTab() {
-  const { environment, pickEnvValue } = useSessionStore();
+  const { environment, pickEnvValue, session } = useSessionStore();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const soundOptions = ['Low', 'Medium', 'Loud', 'Very Loud'];
@@ -19,15 +19,51 @@ export function EnvironmentTab() {
     { label: 'Long (15+)', value: 'Long (15+)' }
   ];
 
-  const handleSaveSnapshot = () => {
-    const now = new Date();
-    let hours = now.getHours();
-    const mins = String(now.getMinutes()).padStart(2, '0');
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    hours = hours % 12;
-    hours = hours ? hours : 12;
-    const timeStr = `${hours}:${mins} ${ampm}`.toLowerCase();
-    showToast(`Environment logged — ${timeStr}`, 'ok');
+  const handleSaveSnapshot = async () => {
+    if (!session.sessionId) {
+      showToast('No active session on server', 'warn');
+      return;
+    }
+
+    const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://20.219.216.138';
+
+    try {
+      const res = await fetch(`${BASE_URL}/api/kpi/session/${session.sessionId}/environment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          zone: 'venue-wide',
+          notes: 'Environment Snapshot',
+          readings: [
+            { signal_label: 'sound_level', value_text: environment.sound.toLowerCase() },
+            { signal_label: 'temperature', value_text: environment.temp.toLowerCase() },
+            { signal_label: 'crowd_energy', value_text: environment.energy.toLowerCase() },
+            { signal_label: 'queue_at_bar', value_text: environment.queue.toLowerCase() },
+            { signal_label: 'complaint_count', value_numeric: environment.complaints.length }
+          ],
+          sound_level: environment.sound.toLowerCase(),
+          temperature: environment.temp.toLowerCase(),
+          crowd_energy: environment.energy.toLowerCase(),
+          queue_at_bar: environment.queue.toLowerCase(),
+          complaint_count: environment.complaints.length
+        })
+      });
+
+      if (!res.ok) {
+        throw new Error('Server returned error status');
+      }
+
+      const now = new Date();
+      let hours = now.getHours();
+      const mins = String(now.getMinutes()).padStart(2, '0');
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12;
+      hours = hours ? hours : 12;
+      const timeStr = `${hours}:${mins} ${ampm}`.toLowerCase();
+      showToast(`Saved ✓ — ${timeStr}`, 'ok');
+    } catch (err: any) {
+      showToast(`Save failed: ${err.message || err}`, 'warn');
+    }
   };
 
   const complaintsCount = environment.complaints.length;

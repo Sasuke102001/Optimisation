@@ -472,6 +472,113 @@
 }
 .sp-ref-toggle:hover { color: var(--gold); }
 
+/* ═══════════════════════════════════════════════════════════
+   Reference Tracks table (inside phase cards)
+   ═══════════════════════════════════════════════════════════ */
+
+.sp-ref-tracks-wrap {
+  margin: 4px 16px 0;
+}
+
+.sp-ref-tracks-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-disabled);
+  margin-bottom: 6px;
+}
+
+.sp-ref-tracks-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.sp-ref-tracks-table th {
+  text-align: left;
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-disabled);
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.sp-ref-tracks-table td {
+  padding: 5px 6px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  color: var(--text-primary);
+  line-height: 1.35;
+  vertical-align: top;
+}
+
+.sp-ref-tracks-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.sp-ref-tracks-table tbody tr:hover td {
+  background: rgba(255,255,255,0.018);
+}
+
+/* BPM cell — monospace-feel */
+.sp-rt-bpm {
+  font-family: 'Space Grotesk', monospace;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+
+/* Key cell */
+.sp-rt-key {
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+
+/* Chords cell — each section on own line */
+.sp-rt-chords {
+  color: var(--text-secondary);
+  font-size: 10.5px;
+}
+
+.sp-rt-chord-line {
+  display: block;
+  white-space: nowrap;
+}
+
+/* Energy score */
+.sp-rt-energy {
+  font-weight: 700;
+  text-align: center;
+  white-space: nowrap;
+}
+.sp-rt-energy--low   { color: var(--text-disabled); }
+.sp-rt-energy--mid   { color: #F59E0B; }        /* amber */
+.sp-rt-energy--high  { color: var(--gold); }
+
+/* Why cell — primary purpose of the table */
+.sp-rt-why {
+  color: var(--text-secondary);
+  font-size: 10.5px;
+  line-height: 1.45;
+  /* On small viewports, truncate with ellipsis but never hide */
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+@media (min-width: 900px) {
+  .sp-rt-why {
+    -webkit-line-clamp: unset;
+    overflow: visible;
+    display: block;
+  }
+}
+
 /* ── Print ── */
 @media print {
   .sp-header-actions { display: none; }
@@ -479,3 +586,4 @@
   .sp-transition-card { display: none; }
   .sp-curve-wrap { display: none; }
 }
+

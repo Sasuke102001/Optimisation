@@ -113,6 +113,43 @@ CREATE INDEX IF NOT EXISTS idx_m3_seg_tbl_log_segment
 
 
 -- =============================================================================
+-- m3_kpi_dimension_map
+-- Maps M3 KPI family slugs to M2 fitness dimension columns.
+-- Written once by M3 team. Read by M2 recalibration pipeline at runtime.
+-- Tells M2 which fitness dimension each observed KPI family affects,
+-- in which direction, and with what relative weight.
+--
+-- M2 recalibration script JOINs m3_kpi_observations to this table to know
+-- which venue_fitness_dimensions column to update and how.
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS m3_kpi_dimension_map (
+    id              SERIAL PRIMARY KEY,
+    kpi_family_slug TEXT        NOT NULL,
+    m2_dimension    TEXT        NOT NULL,   -- exact column name in venue_fitness_dimensions
+    direction       VARCHAR(10) NOT NULL CHECK (direction IN ('positive', 'negative')),
+    weight          FLOAT       NOT NULL DEFAULT 1.0 CHECK (weight > 0 AND weight <= 1.0),
+    notes           TEXT,
+    UNIQUE (kpi_family_slug, m2_dimension)
+);
+
+INSERT INTO m3_kpi_dimension_map (kpi_family_slug, m2_dimension, direction, weight, notes) VALUES
+  ('crowd_energy', 'fitness_for_group_energy', 'positive', 1.0, 'Direct measure of group energy and dancefloor activation'),
+  ('crowd_energy', 'operational_quality',      'positive', 0.6, 'Active, engaged crowd reflects well-run operation'),
+  ('environment',  'operational_quality',      'positive', 0.8, 'Sound/temperature/atmosphere coherence is an operational quality signal'),
+  ('commercial',   'retention_strength',       'positive', 1.0, 'Long dwell + bar activity = strong retention'),
+  ('commercial',   'fitness_for_social_dwell', 'positive', 0.7, 'Tables staying = venue supports social dwell behaviour'),
+  ('crowd_stress', 'operational_quality',      'negative', 1.0, 'Fatigue/overcrowding/discomfort degrades operational quality score')
+ON CONFLICT (kpi_family_slug, m2_dimension) DO NOTHING;
+
+-- Dimensions intentionally NOT in this map (M3 does not have data for these):
+--   fitness_for_office_lunch    -- M3 runs evening sessions only
+--   fitness_for_destination_visit -- needs acquisition/marketing signals
+--   fitness_for_repeat_habit    -- comes from survey recalibration (Phase 8)
+--   monetization_potential      -- needs spend data, not available from KPI taps
+
+
+-- =============================================================================
 -- m3_app_user permissions
 -- Run AFTER the tables above are created. Replace 'your_password' first.
 -- =============================================================================
@@ -140,5 +177,8 @@ CREATE INDEX IF NOT EXISTS idx_m3_seg_tbl_log_segment
 --     m3_segment_validation_feedback,
 --     m3_venue_behavioral_outcomes
 -- TO m3_app_user;
+
+-- -- m3_kpi_dimension_map is read-only for m3_app_user (written at setup, never at runtime)
+-- GRANT SELECT ON m3_kpi_dimension_map TO m3_app_user;
 
 -- GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO m3_app_user;

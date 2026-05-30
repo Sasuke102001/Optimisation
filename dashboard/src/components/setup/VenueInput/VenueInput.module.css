@@ -28,3 +28,76 @@
 .setupInput:focus {
   border-color: var(--gold-muted);
 }
+
+.dropdownList {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: rgba(20, 20, 20, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border);
+  border-radius: var(--rs);
+  max-height: 200px;
+  overflow-y: auto;
+  margin-top: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.dropdownItem {
+  padding: 10px 14px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  transition: background 0.15s;
+}
+
+.dropdownItem:hover {
+  background: rgba(230, 211, 163, 0.08);
+}
+
+.dropdownItem:last-child {
+  border-bottom: none;
+}
+
+.dropdownName {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.dropdownMeta {
+  font-size: 10.5px;
+  color: var(--text-disabled);
+  margin-top: 2px;
+}
+
+.selectedChip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgba(230, 211, 163, 0.12);
+  border: 1px solid var(--gold-muted);
+  border-radius: var(--rs);
+  color: var(--gold);
+  font-size: 13px;
+  font-weight: 600;
+  gap: 8px;
+}
+
+.clearChipBtn {
+  background: transparent;
+  border: none;
+  color: var(--gold);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 6px;
+  font-weight: bold;
+  transition: opacity 0.15s;
+  outline: none;
+}
+
+.clearChipBtn:hover {
+  opacity: 0.7;
+}
